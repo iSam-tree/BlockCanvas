@@ -1,0 +1,3628 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poster Canvas Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #eceef1;
+      --panel: #ffffff;
+      --line: #d9dde3;
+      --text: #111317;
+      --muted: #5e646d;
+      --accent: #3f6fff;
+      --r: 20px;
+      --shadow: 0 8px 20px rgba(16, 18, 24, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 14% -8%, #f7f9fc, #eff2f6 42%, #e9edf2);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100dvh;
+      height: auto;
+      overflow: hidden;
+    }
+
+    .brand-fixed {
+      position: fixed;
+      left: 12px;
+      top: 8px;
+      z-index: 300;
+      padding: 0;
+      border-radius: 0;
+      border: 0;
+      background: transparent;
+      color: #0f172a;
+      font-size: 40px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: 0.01em;
+      box-shadow: none;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .app {
+      display: flex;
+      gap: 20px;
+      min-height: 100dvh;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+      padding: 88px 12px 10px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .left,
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 320px;
+      width: 380px;
+      flex: 0 0 380px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      flex: 1 1 auto;
+      height: 100%;
+    }
+
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff, #f4f6f9);
+    }
+
+    .head h1 { margin: 0; font-size: 22px; line-height: 1.15; }
+    .head h2 { margin: 0; font-size: 18px; line-height: 1.2; }
+
+    .head small { color: var(--muted); display: block; margin-top: 2px; }
+
+    .scroll {
+      padding: 12px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      display: block;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .scroll > * + * {
+      margin-top: 10px;
+    }
+
+    .sidebarScroll {
+      padding: 14px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-auto-rows: min-content;
+      gap: 16px;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      flex: 1 1 0;
+      min-height: 0;
+      height: auto;
+    }
+
+    .sidebarHeader {
+      flex: 0 0 auto;
+    }
+
+    details {
+      border: 1px solid #dfe3ea;
+      border-radius: 18px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 6px 14px rgba(17, 19, 23, 0.05);
+    }
+
+    summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      color: #1d2129;
+      background: #f4f6f9;
+      border-bottom: 1px solid #e6e9ef;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    .content {
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      border: 1px solid #d0d6df;
+      border-radius: 14px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: #fbfcfe;
+    }
+
+    textarea { min-height: 70px; resize: vertical; }
+
+    input[type="color"] { height: 34px; padding: 2px; }
+
+    button { cursor: pointer; }
+
+    .btn {
+      background: linear-gradient(135deg, #4a74ff, #2f5fff);
+      color: #fff;
+      border: 0;
+      font-weight: 700;
+      box-shadow: 0 10px 18px rgba(49, 88, 222, 0.28);
+    }
+
+    .btn.secondary {
+      background: #f3f5f8;
+      color: #232933;
+      border: 1px solid #d5dae2;
+      box-shadow: none;
+    }
+
+    .btn.warn {
+      background: #fff1f1;
+      color: #ab3b3b;
+      border: 1px solid #ffd5d5;
+      box-shadow: none;
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    .seg button {
+      border: 1px solid #d2d8e2;
+      background: #f6f8fb;
+      font-weight: 700;
+    }
+
+    .seg button.active {
+      border-color: #3f6fff;
+      color: #244ec7;
+      background: #e9efff;
+    }
+
+    .layers {
+      display: grid;
+      gap: 10px;
+    }
+
+    .layer {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #dde2ea;
+      border-radius: 16px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .layer.active {
+      border-color: #5b88ff;
+      box-shadow: inset 0 0 0 1px #5b88ff;
+      background: #f4f8ff;
+    }
+
+    .layer small { color: var(--muted); }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f5f7fa;
+    }
+
+    .workspace {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+      min-width: 0;
+      padding: 20px;
+      background: linear-gradient(180deg, #eef2f6, #e8edf3);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .canvas {
+      position: relative;
+      background: #f8fafc;
+      border-radius: 20px;
+      border: 1px solid #d7dce4;
+      box-shadow: 0 12px 28px rgba(16, 18, 24, 0.14);
+      transform-origin: top center;
+      overflow: visible;
+    }
+
+    .canvas-grid {
+      display: grid;
+      gap: 18px;
+      width: 100%;
+      min-height: 100%;
+    }
+
+    .element {
+      position: absolute;
+      border: 1px solid rgba(215, 221, 230, 0.95);
+      border-radius: 18px;
+      box-shadow: 0 8px 16px rgba(17, 19, 24, 0.08);
+      user-select: none;
+      overflow: visible;
+    }
+
+    .element[data-type="card"] { min-width: 120px; min-height: 100px; }
+    .element[data-type="table"] { min-width: 180px; min-height: 120px; }
+    .element[data-type="text"] { min-width: 120px; min-height: 44px; }
+
+    .element.selected {
+      outline: 2px solid #4d7eff;
+      outline-offset: 1px;
+      z-index: 40;
+    }
+
+    .element-controls {
+      position: absolute;
+      inset: 0;
+      display: none;
+      pointer-events: none;
+      z-index: 56;
+    }
+
+    .element.selected .element-controls { display: block; }
+
+    .element-delete {
+      position: absolute;
+      top: -30px;
+      right: -2px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid #ffd6d6;
+      background: #fff2f2;
+      color: #a23030;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 3px 8px rgba(60, 18, 18, 0.15);
+    }
+
+    .resize-handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #4d7eff;
+      border: 1px solid #fff;
+      border-radius: 2px;
+      z-index: 57;
+      pointer-events: auto;
+    }
+
+    .h-nw { left: -6px; top: -6px; cursor: nwse-resize; }
+    .h-ne { right: -6px; top: -6px; cursor: nesw-resize; }
+    .h-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+    .h-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+
+    .card-body {
+      height: 100%;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-radius: inherit;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top-left-radius: inherit;
+      border-top-right-radius: inherit;
+      border-bottom: 1px solid rgba(63, 92, 142, 0.12);
+      background: rgba(91, 136, 255, 0.14);
+    }
+
+    .card-top h3 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .badge {
+      border-radius: 999px;
+      font-size: 11px;
+      padding: 4px 9px;
+      color: #2d4f96;
+      background: rgba(91, 136, 255, 0.18);
+      font-weight: 700;
+      border: 1px solid rgba(91, 136, 255, 0.25);
+    }
+
+    .card-list {
+      margin: 0;
+      padding: 10px 14px 8px;
+      line-height: 1.45;
+      flex: 1;
+      font-size: 13px;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+    }
+
+    .card-content {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .card-inner-table-wrap {
+      margin: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .card-inner-table-host {
+      position: absolute;
+      left: 12px;
+      top: 76px;
+      width: 160px;
+      height: 96px;
+      z-index: 3;
+      min-width: 80px;
+      min-height: 56px;
+      cursor: move;
+    }
+
+    .card-inner-table-host.selected {
+      outline: 1px solid #4d7eff;
+      outline-offset: 1px;
+    }
+
+    .card-inner-table-host .inner-table-resize {
+      position: absolute;
+      right: -5px;
+      bottom: -5px;
+      width: 10px;
+      height: 10px;
+      background: #4d7eff;
+      border: 1px solid #fff;
+      border-radius: 2px;
+      cursor: nwse-resize;
+      z-index: 4;
+    }
+
+    table.card-inner-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+
+table.card-inner-table td {
+      border: var(--inner-border-width, 1px) solid var(--inner-border-color, rgba(148, 163, 184, 0.25));
+      padding: 5px 6px;
+      word-break: break-word;
+    }
+
+    .element[data-type="image"] {
+      background: #fff;
+      border: 1px solid #dbe4f3;
+      overflow: hidden;
+    }
+
+    .image-body {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f7f9fd;
+    }
+
+    .image-body img {
+      width: 100%;
+      height: 100%;
+      object-fit: var(--img-fit, contain);
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+
+    .note {
+      margin: 0 10px 10px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      background: rgba(148, 163, 184, 0.16);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      font-size: 11px;
+      color: #66758b;
+    }
+
+    .text-body {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 8px 10px;
+      border-radius: inherit;
+      background: transparent;
+      overflow: hidden;
+      word-break: break-word;
+      white-space: pre-wrap;
+      line-height: 1.35;
+    }
+
+    .table-wrap {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #dae3f0;
+    }
+
+    table.editor-table {
+      border-collapse: collapse;
+      width: 100%;
+      height: 100%;
+      table-layout: fixed;
+    }
+
+    table.editor-table td {
+      border: var(--inner-border-width, 1px) solid var(--inner-border-color, #cfd9e8);
+      padding: 6px;
+      font-size: 13px;
+      vertical-align: middle;
+      text-align: left;
+      min-width: 60px;
+      min-height: 30px;
+    }
+
+    table.editor-table td.cell-selected,
+    table.card-inner-table td.cell-selected {
+      outline: 2px solid #4d7eff;
+      outline-offset: -2px;
+      background: rgba(77, 126, 255, 0.12);
+    }
+
+    table.editor-table td[contenteditable="true"]:focus {
+      outline: 2px solid #4d7eff;
+      outline-offset: -2px;
+    }
+
+    .guide {
+      position: absolute;
+      background: #4d7eff;
+      opacity: 0.8;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .guide.v { width: 1px; height: 100%; top: 0; }
+    .guide.h { height: 1px; width: 100%; left: 0; }
+
+    .distance-tag {
+      position: absolute;
+      font-size: 11px;
+      background: #1f2a3c;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 6px;
+      z-index: 101;
+      pointer-events: none;
+    }
+
+    .muted { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 1260px) {
+      body { height: auto; overflow: auto; }
+      .app {
+        flex-direction: column;
+        height: auto;
+        min-height: calc(100dvh + 24px);
+        overflow: visible;
+        gap: 12px;
+      }
+      .left,
+      .sidebar {
+        width: 100%;
+        flex: 0 0 auto;
+        min-width: 0;
+        height: 48dvh;
+        min-height: 48dvh;
+        overflow: hidden;
+      }
+      .right {
+        height: 48dvh;
+        min-height: 48dvh;
+      }
+      .sidebarScroll {
+        height: auto;
+        max-height: none;
+        min-height: 0;
+        flex: 1 1 auto;
+      }
+      .element-delete {
+        top: -28px;
+        right: -2px;
+      }
+      .brand-fixed {
+        font-size: 30px;
+        padding: 10px 12px;
+      }
+      .app {
+        padding-top: 74px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="brand-fixed" id="brandFixed">积木画布</div>
+  <div class="app">
+    <aside class="panel left sidebar">
+      <div class="head sidebarHeader">
+        <div>
+          <h1 id="leftTitle">属性面板</h1>
+          <small id="leftSubtitle">全局 + 选中元素 + 图层</small>
+        </div>
+      </div>
+      <div class="sidebarScroll">
+        <div class="content" style="padding:0;">
+          <div class="row">
+            <button class="btn secondary" id="loadLocalFontsBtn">加载本机字体</button>
+            <div class="muted" id="fontLoadStatus" style="align-self:center;">未加载本机字体</div>
+          </div>
+        </div>
+
+        <details open>
+          <summary id="sumGlobal">全局设置</summary>
+          <div class="content" id="globalPanel"></div>
+        </details>
+
+        <details open>
+          <summary id="sumSelected">当前选中元素</summary>
+          <div class="content" id="selectionPanel">
+            <div class="muted">未选中元素</div>
+          </div>
+        </details>
+
+        <details open>
+          <summary id="sumLayers">图层列表（Shift 可多选）</summary>
+          <div class="content">
+            <div class="row">
+              <button class="btn" id="addCardBtn">新增卡片</button>
+              <button class="btn secondary" id="addTableBtn">新增表格</button>
+            </div>
+            <div class="row">
+              <button class="btn secondary" id="addTextBtn">新增文本框</button>
+              <button class="btn secondary" id="addImageBtn">上传图片</button>
+            </div>
+            <input type="file" id="imageFileInput" accept="image/*" style="display:none" />
+            <div class="layers" id="layerPanel"></div>
+          </div>
+        </details>
+
+        <details>
+          <summary id="sumExport">JSON / 导出</summary>
+          <div class="content">
+            <div class="row">
+              <button class="btn secondary" id="copyJsonBtn">复制 JSON</button>
+              <div></div>
+            </div>
+            <label id="exportScaleLabel">导出清晰度</label>
+            <div class="row">
+              <button class="btn secondary" data-scale="2" id="export2xBtn">导出 PNG 2x</button>
+              <button class="btn secondary" data-scale="3" id="export3xBtn">导出 PNG 3x</button>
+            </div>
+            <button class="btn secondary" id="exportPdfBtn">导出 PDF</button>
+            <label id="jsonConfigLabel" for="jsonBox">配置 JSON</label>
+            <textarea id="jsonBox" spellcheck="false"></textarea>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <section class="panel right">
+      <div class="head">
+        <div>
+          <h2 id="rightTitle">画布预览</h2>
+          <small id="canvasInfo">Grid 模式</small>
+        </div>
+        <button class="btn secondary" id="localeToggleBtn" style="width:auto; padding:8px 12px;">EN</button>
+      </div>
+      <div class="toolbar">
+        <button class="btn secondary" id="modeGridBtn">Grid 模式</button>
+        <button class="btn secondary" id="modeFreeBtn">Free 模式</button>
+        <button class="btn secondary" id="alignLeftBtn">左对齐</button>
+        <button class="btn secondary" id="alignCenterBtn">水平居中</button>
+        <button class="btn secondary" id="alignTopBtn">顶对齐</button>
+        <button class="btn secondary" id="distributeXBtn">水平分布</button>
+      </div>
+      <div class="workspace" id="workspace">
+        <div class="canvas" id="canvas"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const App = (() => {
+      const SNAP = 8;
+
+      const state = {
+        ui: {
+          mode: 'free',
+          locale: 'zh',
+          zoom: 1,
+          selectedIds: [],
+          guides: [],
+          tableSelection: null,
+          tableSelectionDraft: null
+        },
+        canvas: {
+          width: 794,
+          height: 1123,
+          background: '#f8fbff',
+          title: '画布编辑器标题',
+          subtitle: '支持 Grid 排序 / Free 自由排版 / 对齐与吸附',
+          columns: 3,
+          gap: 14,
+          padding: 24
+        },
+        theme: {
+          text: '#1f2b3d',
+          textSoft: '#64748b',
+          accent: '#5b88ff',
+          radius: 14,
+          shadow: 10
+        },
+        elements: []
+      };
+
+      const I18N = {
+        zh: {
+          brand: '积木画布',
+          panelTitle: '属性面板',
+          panelSub: '全局 + 选中元素 + 图层',
+          previewTitle: '画布预览',
+          sumGlobal: '全局设置',
+          sumSelected: '当前选中元素',
+          sumLayers: '图层列表（Shift 可多选）',
+          sumExport: 'JSON / 导出',
+          modeGrid: 'Grid 模式',
+          modeFree: 'Free 模式',
+          alignLeft: '左对齐',
+          alignCenter: '水平居中',
+          alignTop: '顶对齐',
+          distributeX: '水平分布',
+          addCard: '新增卡片',
+          addTable: '新增表格',
+          addText: '新增文本框',
+          uploadImg: '上传图片',
+          loadLocalFonts: '加载本机字体',
+          copyJson: '复制 JSON',
+          export2x: '导出 PNG 2x',
+          export3x: '导出 PNG 3x',
+          exportPdf: '导出 PDF',
+          exportScale: '导出清晰度',
+          jsonConfig: '配置 JSON',
+          noSelect: '未选中元素',
+          modeText: '模式',
+          copied: 'JSON 已复制',
+          copyFail: '复制失败，请手动复制文本框内容',
+          localeBtn: 'EN',
+          modeGridLabel: 'Grid 模式',
+          modeFreeLabel: 'Free 模式',
+          layerType: { card: '卡片', table: '表格', image: '图片', text: '文本框' }
+        },
+        en: {
+          brand: 'BlockCanvas',
+          panelTitle: 'Properties',
+          panelSub: 'Global + Selected + Layers',
+          previewTitle: 'Canvas Preview',
+          sumGlobal: 'Global Settings',
+          sumSelected: 'Selected Element',
+          sumLayers: 'Layers (Shift for Multi-select)',
+          sumExport: 'JSON / Export',
+          modeGrid: 'Grid Mode',
+          modeFree: 'Free Mode',
+          alignLeft: 'Align Left',
+          alignCenter: 'Align Center',
+          alignTop: 'Align Top',
+          distributeX: 'Distribute X',
+          addCard: 'Add Card',
+          addTable: 'Add Table',
+          addText: 'Add Text Box',
+          uploadImg: 'Upload Image',
+          loadLocalFonts: 'Load Local Fonts',
+          copyJson: 'Copy JSON',
+          export2x: 'Export PNG 2x',
+          export3x: 'Export PNG 3x',
+          exportPdf: 'Export PDF',
+          exportScale: 'Export Scale',
+          jsonConfig: 'Config JSON',
+          noSelect: 'No element selected',
+          modeText: 'Mode',
+          copied: 'JSON copied',
+          copyFail: 'Copy failed, please copy text manually',
+          localeBtn: '中文',
+          modeGridLabel: 'Grid Mode',
+          modeFreeLabel: 'Free Mode',
+          layerType: { card: 'Card', table: 'Table', image: 'Image', text: 'Text Box' }
+        }
+      };
+
+      function t(key) {
+        const lang = state.ui.locale === 'en' ? 'en' : 'zh';
+        return I18N[lang][key] ?? key;
+      }
+
+      function isEN() {
+        return state.ui.locale === 'en';
+      }
+
+      const CARD_PALETTES = {
+        sky: { name: '雾蓝清新', en: 'Misty Blue', list: [['#dcecff', '#f5f9ff', '#5b88ff'], ['#d7efe8', '#f5fcf8', '#4ca57b'], ['#fff0d9', '#fff9f0', '#e59f3f']] },
+        peach: { name: '蜜桃奶油', en: 'Peach Cream', list: [['#ffe5da', '#fff6f1', '#e58464'], ['#ffe9ef', '#fff7fa', '#d97897'], ['#f7e8ff', '#fcf6ff', '#9f78cf']] },
+        mint: { name: '薄荷森林', en: 'Mint Forest', list: [['#ddf6eb', '#f4fff9', '#46a27d'], ['#e6f5dc', '#f8fff3', '#6ea14b'], ['#e2f0ff', '#f6fbff', '#5c8ccf']] },
+        neutral: { name: '高级中性', en: 'Neutral Pro', list: [['#ebedf2', '#f8f9fc', '#6f7d96'], ['#e8eef3', '#f8fbfd', '#5f7b96'], ['#efeae6', '#fbf9f7', '#927a67']] },
+        sunset: { name: '落日暖橘', en: 'Sunset Orange', list: [['#ffe7d1', '#fff5ea', '#df8c3e'], ['#ffd9c9', '#fff2ec', '#cf6f54'], ['#ffe5dd', '#fff7f3', '#d38f76']] },
+        lilac: { name: '雾紫花园', en: 'Lilac Garden', list: [['#eee8ff', '#faf7ff', '#8c78cf'], ['#f4e8ff', '#fcf8ff', '#a674c6'], ['#e9ebff', '#f7f9ff', '#7c8fd8']] },
+        ocean: { name: '深海雾青', en: 'Ocean Teal', list: [['#d9f0f5', '#f2fbfd', '#3f91a8'], ['#d7ecef', '#f1f8fa', '#468091'], ['#def1ea', '#f3fcf9', '#3d9b76']] },
+        cocoa: { name: '可可米棕', en: 'Cocoa Beige', list: [['#efe6df', '#faf6f2', '#9c7459'], ['#f2ebe6', '#fcf8f5', '#8a7362'], ['#ebe5dc', '#f8f4ef', '#967a5d']] }
+      };
+
+      const CANVAS_PRESETS = [
+        { key: 'a4', zh: 'A4 竖版 (794 x 1123)', en: 'A4 Portrait (794 x 1123)', w: 794, h: 1123 },
+        { key: 'a3', zh: 'A3 竖版 (1123 x 1587)', en: 'A3 Portrait (1123 x 1587)', w: 1123, h: 1587 },
+        { key: 'letter', zh: 'Letter 竖版 (816 x 1056)', en: 'Letter Portrait (816 x 1056)', w: 816, h: 1056 },
+        { key: 'post-square', zh: '社媒方图 1:1 (1080 x 1080)', en: 'Social Post 1:1 (1080 x 1080)', w: 1080, h: 1080 },
+        { key: 'post-portrait', zh: '社媒竖图 4:5 (1080 x 1350)', en: 'Social Post 4:5 (1080 x 1350)', w: 1080, h: 1350 },
+        { key: 'story', zh: 'Story/Reel 9:16 (1080 x 1920)', en: 'Story/Reel 9:16 (1080 x 1920)', w: 1080, h: 1920 },
+        { key: 'x-cover', zh: 'X 封面 (1500 x 500)', en: 'X Cover (1500 x 500)', w: 1500, h: 500 },
+        { key: 'youtube-thumb', zh: 'YouTube 缩略图 (1280 x 720)', en: 'YouTube Thumbnail (1280 x 720)', w: 1280, h: 720 }
+      ];
+
+      const Fonts = {
+        base: [
+          '系统默认',
+          'PingFang SC',
+          'Microsoft YaHei',
+          'Songti SC',
+          'KaiTi',
+          'STHeiti',
+          'Arial',
+          'Helvetica',
+          'Georgia',
+          'Times New Roman',
+          'Verdana',
+          'Trebuchet MS',
+          'Courier New'
+        ],
+        loaded: [],
+        get options() {
+          const baseOptions = this.base.map(name => ({ value: name, label: name }));
+          return [...baseOptions, ...this.loaded];
+        },
+        optionHtml(value = '') {
+          const safeValue = value || '系统默认';
+          return this.options
+            .map(opt => `<option value="${escapeAttr(opt.value)}" ${safeValue === opt.value ? 'selected' : ''}>${escapeHtml(opt.label)}</option>`)
+            .join('');
+        },
+        async init() {
+          this.updateStatus(isEN() ? 'Local fonts not loaded' : '未加载本机字体');
+        },
+        hasCJK(text = '') {
+          return /[\u3400-\u9fff]/.test(String(text));
+        },
+        pushOption(bucket, seen, value, label) {
+          const v = sanitizeFontName(value);
+          if (!v || v === '系统默认' || seen.has(v)) return;
+          seen.add(v);
+          bucket.push({ value: v, label: String(label || v) });
+        },
+        updateStatus(text) {
+          const node = document.getElementById('fontLoadStatus');
+          if (node) node.textContent = text;
+        },
+        async loadLocalFonts() {
+          if (!window.queryLocalFonts) {
+            this.updateStatus(isEN() ? 'Local Font API not supported' : '当前浏览器不支持本机字体 API');
+            alert(isEN() ? 'Local Font API is not supported. Please use latest Chrome/Edge.' : '当前浏览器不支持本机字体 API，请使用 Chrome/Edge 最新版本。');
+            return;
+          }
+          try {
+            const fonts = await window.queryLocalFonts();
+            const loaded = [];
+            const seen = new Set(this.base.map(x => sanitizeFontName(x)));
+            let zhNamed = 0;
+            fonts.forEach(f => {
+              const family = sanitizeFontName(f?.family || '');
+              const fullName = sanitizeFontName(f?.fullName || '');
+              const postScriptName = sanitizeFontName(f?.postscriptName || '');
+              const value = family || fullName || postScriptName;
+              if (!value) return;
+              let label = value;
+              if (family && fullName && fullName !== family) {
+                label = this.hasCJK(fullName) ? `${fullName} · ${family}` : `${family} · ${fullName}`;
+              } else if (family && postScriptName && postScriptName !== family) {
+                label = `${family} · ${postScriptName}`;
+              }
+              if (this.hasCJK(label)) zhNamed += 1;
+              this.pushOption(loaded, seen, value, label);
+            });
+            loaded.sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'));
+            this.loaded = loaded;
+            this.updateStatus(isEN() ? `Loaded ${loaded.length} font options` : `已加载 ${loaded.length} 个字体选项（含约 ${zhNamed} 个中文名条目）`);
+            Renderer.renderSelectionPanel();
+          } catch (err) {
+            this.updateStatus(isEN() ? 'Failed to load local fonts' : '本机字体读取失败');
+            alert((isEN() ? 'Failed to load local fonts: ' : '读取本机字体失败: ') + (err?.message || err));
+          }
+        }
+      };
+
+      const refs = {
+        canvas: document.getElementById('canvas'),
+        workspace: document.getElementById('workspace'),
+        globalPanel: document.getElementById('globalPanel'),
+        selectionPanel: document.getElementById('selectionPanel'),
+        layerPanel: document.getElementById('layerPanel'),
+        jsonBox: document.getElementById('jsonBox'),
+        canvasInfo: document.getElementById('canvasInfo'),
+        imageFileInput: document.getElementById('imageFileInput')
+      };
+
+      const Id = () => 'el_' + Math.random().toString(36).slice(2, 10);
+
+      const Schema = {
+        makeCard() {
+          return {
+            id: Id(),
+            type: 'card',
+            name: '卡片',
+            x: 40,
+            y: 140,
+            w: 220,
+            h: 200,
+            z: 1,
+            style: {
+              bg: '#e9f2ff',
+              bg2: '#f7fbff',
+              gradient: true,
+              text: '#1f2b3d',
+              accent: '#5b88ff',
+              radius: 18,
+              borderColor: '#d8e4fb',
+              borderWidth: 1,
+              bgAlpha: 0.18,
+              bg2Alpha: 0.12,
+              textAlpha: 1,
+              borderAlpha: 1,
+              accentAlpha: 1
+            },
+            content: {
+              title: isEN() ? 'Card Title' : '模块标题',
+              badge: isEN() ? 'Label' : '标签',
+              icon: '',
+              points: isEN() ? ['Point A', 'Point B', 'Point C'] : ['要点一', '要点二', '要点三'],
+              note: isEN() ? 'Bottom note' : '底部注释条',
+              showNote: true,
+              titleStyle: { size: 16, bold: true, italic: false, color: '#1f2b3d', font: '系统默认' },
+              bodyStyle: { size: 13, bold: false, italic: false, color: '#1f2b3d', font: '系统默认' },
+              noteStyle: { size: 11, bold: false, italic: false, color: '#66758b', font: '系统默认' },
+              badgeStyle: { size: 11, bold: true, italic: false, color: '#2d4f96', alpha: 1, font: '系统默认' },
+              innerTable: {
+                enabled: false,
+                rows: 2,
+                cols: 2,
+                x: 12,
+                y: 76,
+                w: 160,
+                h: 96,
+                align: 'left',
+                borderColor: '#cfd9e8',
+                borderWidth: 1,
+                bg: '#ffffff',
+                text: '#1f2b3d',
+                bgAlpha: 1,
+                textAlpha: 1,
+                borderAlpha: 1,
+                fontSize: 12,
+                bold: false,
+                italic: false,
+                font: '系统默认',
+                radius: 18,
+                cells: [
+                  [{ text: isEN() ? 'Field' : '字段' }, { text: isEN() ? 'Content' : '内容' }],
+                  [{ text: isEN() ? 'Example' : '示例' }, { text: isEN() ? 'Editable' : '可编辑' }]
+                ],
+                merges: []
+              }
+            },
+            children: []
+          };
+        },
+        makeImage(src = '') {
+          return {
+            id: Id(),
+            type: 'image',
+            name: '图片',
+            x: 120,
+            y: 180,
+            w: 240,
+            h: 180,
+            z: 3,
+            style: {
+              fit: 'contain',
+              opacity: 1
+            },
+            image: {
+              src
+            }
+          };
+        },
+        makeTable() {
+          return {
+            id: Id(),
+            type: 'table',
+            name: '表格',
+            x: 320,
+            y: 240,
+            w: 320,
+            h: 220,
+            z: 2,
+            style: {
+              border: '#cfd9e8',
+              bg: '#ffffff',
+              text: '#1f2b3d',
+              align: 'left',
+              fontSize: 13,
+              bold: false,
+              italic: false,
+              font: '系统默认',
+              bgAlpha: 1,
+              textAlpha: 1,
+              borderAlpha: 1,
+              radius: 18
+            },
+            table: {
+              rows: 3,
+              cols: 3,
+              rowHeights: [34, 34, 34],
+              colWidths: [120, 120, 120],
+              merges: [],
+              cells: [
+                [{ text: isEN() ? 'A1' : 'A1' }, { text: isEN() ? 'B1' : 'B1' }, { text: isEN() ? 'C1' : 'C1' }],
+                [{ text: isEN() ? 'A2' : 'A2' }, { text: isEN() ? 'B2' : 'B2' }, { text: isEN() ? 'C2' : 'C2' }],
+                [{ text: isEN() ? 'A3' : 'A3' }, { text: isEN() ? 'B3' : 'B3' }, { text: isEN() ? 'C3' : 'C3' }]
+              ]
+            }
+          };
+        },
+        makeText() {
+          return {
+            id: Id(),
+            type: 'text',
+            name: '文本框',
+            x: 80,
+            y: 60,
+            w: 520,
+            h: 68,
+            z: 1,
+            style: {
+              text: '#111827',
+              textAlpha: 1,
+              fontSize: 34,
+              bold: true,
+              italic: false,
+              underline: false,
+              align: 'left',
+              font: '系统默认',
+              bg: '#ffffff',
+              bgAlpha: 0,
+              showBorder: true,
+              borderColor: '#94a3b8',
+              borderAlpha: 0.38,
+              borderWidth: 1,
+              borderStyle: 'dashed',
+              radius: 16
+            },
+            text: {
+              value: isEN() ? 'Welcome to BlockCanvas' : '欢迎使用积木画布'
+            }
+          };
+        }
+      };
+
+      const State = {
+        init() {
+          const welcomeText = Schema.makeText();
+          welcomeText.name = '欢迎标题';
+          welcomeText.x = 28;
+          welcomeText.y = 24;
+          welcomeText.w = 738;
+          welcomeText.h = 76;
+          welcomeText.z = 1;
+          welcomeText.text.value = '欢迎使用积木画布';
+          welcomeText.style.fontSize = 36;
+          welcomeText.style.bold = true;
+          welcomeText.style.text = '#0f172a';
+          welcomeText.style.align = 'center';
+          welcomeText.i18n = {
+            zh: { name: '欢迎标题', text: '欢迎使用积木画布' },
+            en: { name: 'Welcome Title', text: 'Welcome to BlockCanvas' }
+          };
+
+          const cardA = Schema.makeCard();
+          cardA.name = '操作提示 A';
+          cardA.x = 28;
+          cardA.y = 120;
+          cardA.w = 238;
+          cardA.h = 214;
+          cardA.z = 2;
+          cardA.style.bg = '#e8f0ff';
+          cardA.style.bg2 = '#f7faff';
+          cardA.style.accent = '#4f79e8';
+          cardA.content.title = '积木画布上手';
+          cardA.content.badge = 'Step 1';
+          cardA.content.points = [
+            '左侧修改全局参数与选中元素参数',
+            '点击任意元素可进入对应编辑面板',
+            '拖拽和缩放可快速完成布局'
+          ];
+          cardA.content.note = '建议先调整画布尺寸与背景色。';
+          cardA.i18n = {
+            zh: {
+              name: '操作提示 A',
+              title: '积木画布上手',
+              badge: 'Step 1',
+              points: ['左侧修改全局参数与选中元素参数', '点击任意元素可进入对应编辑面板', '拖拽和缩放可快速完成布局'],
+              note: '建议先调整画布尺寸与背景色。'
+            },
+            en: {
+              name: 'Tips A',
+              title: 'Get Started with BlockCanvas',
+              badge: 'Step 1',
+              points: ['Edit global and selected settings in the left panel', 'Click any element to open its settings', 'Drag and resize to build layout quickly'],
+              note: 'Start with canvas size and background color.'
+            }
+          };
+
+          const cardB = Schema.makeCard();
+          cardB.name = '操作提示 B';
+          cardB.x = 278;
+          cardB.y = 120;
+          cardB.w = 238;
+          cardB.h = 214;
+          cardB.z = 3;
+          cardB.style.bg = '#eaf7ee';
+          cardB.style.bg2 = '#f7fdf9';
+          cardB.style.accent = '#4aa070';
+          cardB.content.title = '积木画布排版';
+          cardB.content.badge = 'Step 2';
+          cardB.content.points = [
+            '卡片、文本框、表格都支持自由移动',
+            'Shift 可多选并进行对齐与分布',
+            '图层列表可管理元素前后顺序'
+          ];
+          cardB.content.note = '拖动元素边角可快速调整大小，让排版更贴合内容。';
+          cardB.i18n = {
+            zh: {
+              name: '操作提示 B',
+              title: '积木画布排版',
+              badge: 'Step 2',
+              points: ['卡片、文本框、表格都支持自由移动', 'Shift 可多选并进行对齐与分布', '图层列表可管理元素前后顺序'],
+              note: '拖动元素边角可快速调整大小，让排版更贴合内容。'
+            },
+            en: {
+              name: 'Tips B',
+              title: 'Arrange in BlockCanvas',
+              badge: 'Step 2',
+              points: ['Cards, text boxes, and tables can move freely', 'Use Shift to multi-select, align, and distribute', 'Manage stacking order in the layer list'],
+              note: 'Drag element corners to resize and fit your content.'
+            }
+          };
+
+          const cardC = Schema.makeCard();
+          cardC.name = '操作提示 C';
+          cardC.x = 528;
+          cardC.y = 120;
+          cardC.w = 238;
+          cardC.h = 214;
+          cardC.z = 4;
+          cardC.style.bg = '#fff1e4';
+          cardC.style.bg2 = '#fff8f1';
+          cardC.style.accent = '#dd8a44';
+          cardC.content.title = '积木画布导出与复用';
+          cardC.content.badge = 'Step 3';
+          cardC.content.points = [
+            '支持导出 PNG（2x / 3x）',
+            '支持复制 JSON 便于保存与复用',
+            '可加载本机字体并应用到元素'
+          ];
+          cardC.content.note = '完成后建议导出 3x 用于高清海报。';
+          cardC.i18n = {
+            zh: {
+              name: '操作提示 C',
+              title: '积木画布导出与复用',
+              badge: 'Step 3',
+              points: ['支持导出 PNG（2x / 3x）', '支持复制 JSON 便于保存与复用', '可加载本机字体并应用到元素'],
+              note: '完成后建议导出 3x 用于高清海报。'
+            },
+            en: {
+              name: 'Tips C',
+              title: 'BlockCanvas Export & Reuse',
+              badge: 'Step 3',
+              points: ['Export PNG at 2x / 3x quality', 'Copy JSON for saving and reuse', 'Load local fonts and apply to elements'],
+              note: 'For best quality, export as 3x PNG.'
+            }
+          };
+
+          const demoTable = Schema.makeTable();
+          demoTable.name = '功能速览表';
+          demoTable.x = 28;
+          demoTable.y = 352;
+          demoTable.w = 738;
+          demoTable.h = 288;
+          demoTable.z = 5;
+          demoTable.table.rows = 5;
+          demoTable.table.cols = 3;
+          demoTable.table.cells = [
+            [{ text: '积木画布功能速览' }, { text: '' }, { text: '' }],
+            [{ text: '模块' }, { text: '操作入口' }, { text: '说明' }],
+            [{ text: '卡片编辑' }, { text: '当前选中元素' }, { text: '样式、文字、颜色、透明度' }],
+            [{ text: '表格编辑' }, { text: '双击单元格 / 左侧面板' }, { text: '支持单元格样式与合并' }],
+            [{ text: '导出与复用' }, { text: 'JSON / 导出 区域' }, { text: 'PNG 导出与 JSON 复制' }]
+          ];
+          demoTable.table.merges = [{ r1: 0, c1: 0, r2: 0, c2: 2 }];
+          demoTable.style.bg = '#ffffff';
+          demoTable.style.border = '#c8d0de';
+          demoTable.table.cells[0][0].style = { bg: '#dfe8ff', color: '#1f3a78', bold: true, fontSize: 15 };
+          demoTable.table.cells[1][0].style = { bg: '#edf2ff', bold: true };
+          demoTable.table.cells[1][1].style = { bg: '#edf2ff', bold: true };
+          demoTable.table.cells[1][2].style = { bg: '#edf2ff', bold: true };
+          demoTable.i18n = {
+            zh: {
+              name: '功能速览表',
+              cells: [
+                ['积木画布功能速览', '', ''],
+                ['模块', '操作入口', '说明'],
+                ['卡片编辑', '当前选中元素', '样式、文字、颜色、透明度'],
+                ['表格编辑', '双击单元格 / 左侧面板', '支持单元格样式与合并'],
+                ['导出与复用', 'JSON / 导出 区域', 'PNG 导出与 JSON 复制']
+              ]
+            },
+            en: {
+              name: 'Feature Overview Table',
+              cells: [
+                ['BlockCanvas Feature Overview', '', ''],
+                ['Module', 'Entry', 'Description'],
+                ['Card Editing', 'Selected Element Panel', 'Styles, text, color, opacity'],
+                ['Table Editing', 'Double-click cells / Left Panel', 'Cell styling and merge support'],
+                ['Export & Reuse', 'JSON / Export Panel', 'PNG export and JSON copy']
+              ]
+            }
+          };
+
+          const freedomCard = Schema.makeCard();
+          freedomCard.name = '自由度清单';
+          freedomCard.x = 28;
+          freedomCard.y = 656;
+          freedomCard.w = 738;
+          freedomCard.h = 320;
+          freedomCard.z = 6;
+          freedomCard.style.bg = '#eef1f4';
+          freedomCard.style.bg2 = '#f8f9fb';
+          freedomCard.style.accent = '#7a838f';
+          freedomCard.content.title = '支持的高自由度自定义维度';
+          freedomCard.content.badge = '自由编辑';
+          freedomCard.content.points = [
+            '画布：尺寸预设 / 自定义尺寸 / 背景 / 间距 / 缩放',
+            '元素：拖拽、缩放、对齐、分布、图层顺序、删除',
+            '卡片：配色、边框、圆角、透明度、标题/正文/注释样式',
+            '文本框：内容、字体、字号、颜色、粗斜下划线、边框样式',
+            '表格：行列增删、合并单元格、单元格样式、独立定位',
+            '导出：PNG 2x/3x、PDF、JSON 复制'
+          ];
+          freedomCard.content.note = '你可以从模板快速开始，也可以从空白画布自由搭建。';
+          freedomCard.i18n = {
+            zh: {
+              name: '自由度清单',
+              title: '支持的高自由度自定义维度',
+              badge: '自由编辑',
+              points: [
+                '画布：尺寸预设 / 自定义尺寸 / 背景 / 间距 / 缩放',
+                '元素：拖拽、缩放、对齐、分布、图层顺序、删除',
+                '卡片：配色、边框、圆角、透明度、标题/正文/注释样式',
+                '文本框：内容、字体、字号、颜色、粗斜下划线、边框样式',
+                '表格：行列增删、合并单元格、单元格样式、独立定位',
+                '导出：PNG 2x/3x、PDF、JSON 复制'
+              ],
+              note: '你可以从模板快速开始，也可以从空白画布自由搭建。'
+            },
+            en: {
+              name: 'Freedom Matrix',
+              title: 'High-Freedom Customization Dimensions',
+              badge: 'Flexible Editing',
+              points: [
+                'Canvas: presets / custom size / background / spacing / zoom',
+                'Elements: drag, resize, align, distribute, layer order, delete',
+                'Cards: palettes, borders, radius, opacity, title/body/note styles',
+                'Text Boxes: content, font, size, color, bold/italic/underline, border styles',
+                'Tables: add/remove rows/cols, merge cells, cell styles, free positioning',
+                'Export: PNG 2x/3x, PDF, JSON copy'
+              ],
+              note: 'Start from templates or build freely from a blank canvas.'
+            }
+          };
+
+          state.elements = [welcomeText, cardA, cardB, cardC, demoTable, freedomCard];
+          applyLocaleToBuiltinContent();
+        },
+        getElement(id) {
+          return state.elements.find(e => e.id === id);
+        },
+        getSelected() {
+          return state.ui.selectedIds.map(id => this.getElement(id)).filter(Boolean);
+        },
+        setMode(mode) {
+          state.ui.mode = mode;
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        toggleSelect(id, additive) {
+          if (!additive) state.ui.selectedIds = [];
+          if (state.ui.selectedIds.includes(id)) {
+            if (additive) state.ui.selectedIds = state.ui.selectedIds.filter(x => x !== id);
+          } else {
+            state.ui.selectedIds.push(id);
+          }
+          Renderer.renderSelectionPanel();
+          Renderer.renderLayerPanel();
+          Renderer.paintSelection();
+        },
+        clearSelect() {
+          state.ui.selectedIds = [];
+          state.ui.tableSelection = null;
+          state.ui.tableSelectionDraft = null;
+          Renderer.renderSelectionPanel();
+          Renderer.renderLayerPanel();
+          Renderer.paintSelection();
+        },
+        toJSON() {
+          return JSON.stringify(state, null, 2);
+        },
+        fromJSON(raw) {
+          const parsed = JSON.parse(raw);
+          if (!parsed.canvas || !parsed.elements) throw new Error('JSON schema mismatch');
+          Object.assign(state, parsed);
+          Renderer.renderAll();
+          Interaction.bindMode();
+        }
+      };
+
+      const Renderer = {
+        renderAll() {
+          this.renderChromeText();
+          this.renderGlobalPanel();
+          this.renderCanvas();
+          this.renderLayerPanel();
+          this.renderSelectionPanel();
+          this.syncJSON();
+          const modeLabel = state.ui.mode === 'grid' ? t('modeGridLabel') : t('modeFreeLabel');
+          refs.canvasInfo.textContent = `${modeLabel} · ${state.canvas.width} x ${state.canvas.height}`;
+        },
+
+        renderChromeText() {
+          const set = (id, value) => {
+            const node = document.getElementById(id);
+            if (node) node.textContent = value;
+          };
+          set('brandFixed', t('brand'));
+          set('leftTitle', t('panelTitle'));
+          set('leftSubtitle', t('panelSub'));
+          set('rightTitle', t('previewTitle'));
+          set('sumGlobal', t('sumGlobal'));
+          set('sumSelected', t('sumSelected'));
+          set('sumLayers', t('sumLayers'));
+          set('sumExport', t('sumExport'));
+          set('exportScaleLabel', t('exportScale'));
+          set('jsonConfigLabel', t('jsonConfig'));
+          const localeBtn = document.getElementById('localeToggleBtn');
+          if (localeBtn) localeBtn.textContent = t('localeBtn');
+          const map = [
+            ['modeGridBtn', t('modeGrid')],
+            ['modeFreeBtn', t('modeFree')],
+            ['alignLeftBtn', t('alignLeft')],
+            ['alignCenterBtn', t('alignCenter')],
+            ['alignTopBtn', t('alignTop')],
+            ['distributeXBtn', t('distributeX')],
+            ['addCardBtn', t('addCard')],
+            ['addTableBtn', t('addTable')],
+            ['addTextBtn', t('addText')],
+            ['addImageBtn', t('uploadImg')],
+            ['loadLocalFontsBtn', t('loadLocalFonts')],
+            ['copyJsonBtn', t('copyJson')],
+            ['export2xBtn', t('export2x')],
+            ['export3xBtn', t('export3x')],
+            ['exportPdfBtn', t('exportPdf')]
+          ];
+          map.forEach(([id, text]) => {
+            const node = document.getElementById(id);
+            if (node) node.textContent = text;
+          });
+        },
+
+        renderGlobalPanel() {
+          const matchedPreset = CANVAS_PRESETS.find(p => p.w === state.canvas.width && p.h === state.canvas.height);
+          const presetLabel = isEN() ? 'Canvas Preset' : '画布尺寸预设';
+          const customLabel = isEN() ? 'Custom Size' : '自定义尺寸';
+          const widthLabel = isEN() ? 'Canvas Width' : '画布宽度';
+          const heightLabel = isEN() ? 'Canvas Height' : '画布高度';
+          const bgLabel = isEN() ? 'Background' : '背景色';
+          const gapLabel = isEN() ? 'Gap' : '间距 gap';
+          const columnsLabel = isEN() ? 'Cards Per Row' : '每行卡片数';
+          const zoomOutLabel = isEN() ? 'Zoom Out' : '缩小';
+          const zoomInLabel = isEN() ? 'Zoom In' : '放大';
+          refs.globalPanel.innerHTML = `
+            <div>
+              <label>${presetLabel}</label>
+              <select id="gPreset">
+                <option value="custom" ${matchedPreset ? '' : 'selected'}>${customLabel}</option>
+                ${CANVAS_PRESETS.map(p => `<option value="${p.key}" ${matchedPreset?.key === p.key ? 'selected' : ''}>${isEN() ? p.en : p.zh}</option>`).join('')}
+              </select>
+            </div>
+            <div class="row">
+              <div><label>${widthLabel}</label><input type="number" id="gWidth" value="${state.canvas.width}" /></div>
+              <div><label>${heightLabel}</label><input type="number" id="gHeight" value="${state.canvas.height}" /></div>
+            </div>
+            <div class="row">
+              <div><label>${bgLabel}</label><input type="color" id="gBg" value="${state.canvas.background}" /></div>
+              <div><label>${gapLabel}</label><input type="number" id="gGap" value="${state.canvas.gap}" /></div>
+            </div>
+            <div>
+              <label>${columnsLabel}</label>
+              <div class="seg" id="columnSeg">${[1,2,3,4,5].map(n => `<button data-col="${n}" class="${n===state.canvas.columns?'active':''}">${n}</button>`).join('')}</div>
+            </div>
+            <div class="row">
+              <button class="btn secondary" id="zoomOutBtn">${zoomOutLabel}</button>
+              <button class="btn secondary" id="zoomInBtn">${zoomInLabel}</button>
+            </div>
+          `;
+
+          refs.globalPanel.querySelector('#gWidth').oninput = e => { state.canvas.width = clampNum(e.target.value, 300, 2400); this.renderCanvas(); this.syncJSON(); };
+          refs.globalPanel.querySelector('#gHeight').oninput = e => { state.canvas.height = clampNum(e.target.value, 300, 3600); this.renderCanvas(); this.syncJSON(); };
+          refs.globalPanel.querySelector('#gBg').oninput = e => { state.canvas.background = e.target.value; this.renderCanvas(); this.syncJSON(); };
+          refs.globalPanel.querySelector('#gGap').oninput = e => { state.canvas.gap = clampNum(e.target.value, 0, 60); this.renderCanvas(); this.syncJSON(); };
+          refs.globalPanel.querySelector('#gPreset').onchange = e => {
+            const key = e.target.value;
+            if (key === 'custom') return;
+            const preset = CANVAS_PRESETS.find(p => p.key === key);
+            if (!preset) return;
+            state.canvas.width = preset.w;
+            state.canvas.height = preset.h;
+            this.renderGlobalPanel();
+            this.renderCanvas();
+            this.syncJSON();
+          };
+
+          refs.globalPanel.querySelectorAll('#columnSeg button').forEach(btn => {
+            btn.onclick = () => {
+              state.canvas.columns = Number(btn.dataset.col);
+              this.renderCanvas();
+              this.renderGlobalPanel();
+              this.syncJSON();
+            };
+          });
+
+          refs.globalPanel.querySelector('#zoomOutBtn').onclick = () => { state.ui.zoom = clampFloat(state.ui.zoom - 0.1, 0.4, 2); this.applyZoom(); };
+          refs.globalPanel.querySelector('#zoomInBtn').onclick = () => { state.ui.zoom = clampFloat(state.ui.zoom + 0.1, 0.4, 2); this.applyZoom(); };
+        },
+
+        applyCardPalette(card, key) {
+          if (!card || card.type !== 'card') return;
+          const palette = CARD_PALETTES[key] || CARD_PALETTES.sky;
+          const item = palette.list[0];
+          card.style.bg = item[0];
+          card.style.bg2 = item[1];
+          card.style.accent = item[2];
+          card.style.borderColor = toRgba(item[2], 0.28);
+          if (!Number.isFinite(Number(card.style.borderWidth))) card.style.borderWidth = 1;
+          this.renderCanvas();
+          this.syncJSON();
+        },
+
+        renderCanvas() {
+          refs.canvas.style.width = state.canvas.width + 'px';
+          refs.canvas.style.height = state.canvas.height + 'px';
+          refs.canvas.style.background = state.canvas.background;
+          this.clearGuides();
+
+          if (state.ui.mode === 'grid') {
+            this.renderGridMode();
+          } else {
+            this.renderFreeMode();
+          }
+
+          this.applyZoom();
+          this.paintSelection();
+          if (typeof Interaction !== 'undefined' && Interaction.paintTableCellSelection) {
+            Interaction.paintTableCellSelection();
+          }
+        },
+
+        renderGridMode() {
+          const cards = state.elements.filter(e => e.type === 'card');
+          const absElements = state.elements.filter(e => e.type !== 'card');
+
+          refs.canvas.innerHTML = `
+            <div style="padding:${state.canvas.padding}px; width:100%; height:100%;">
+              <div id="gridContainer" class="canvas-grid" style="grid-template-columns: repeat(${state.canvas.columns}, minmax(0, 1fr)); gap:${state.canvas.gap}px;"></div>
+            </div>
+          `;
+
+          const grid = refs.canvas.querySelector('#gridContainer');
+          cards.forEach(card => grid.appendChild(this.cardNode(card, false)));
+
+          absElements.forEach(el => {
+            const node = this.renderElementNode(el, true);
+            node.style.position = 'absolute';
+            node.style.left = el.x + 'px';
+            node.style.top = el.y + 'px';
+            node.style.width = el.w + 'px';
+            node.style.height = el.h + 'px';
+            node.style.zIndex = el.z;
+            refs.canvas.appendChild(node);
+          });
+
+          Interaction.bindGridSort(grid);
+          Interaction.bindCanvasElements();
+        },
+
+        renderFreeMode() {
+          refs.canvas.innerHTML = '';
+          state.elements
+            .slice()
+            .sort((a, b) => a.z - b.z)
+            .forEach(el => {
+              const node = this.renderElementNode(el, false);
+              node.style.left = el.x + 'px';
+              node.style.top = el.y + 'px';
+              node.style.width = el.w + 'px';
+              node.style.height = el.h + 'px';
+              node.style.zIndex = el.z;
+              refs.canvas.appendChild(node);
+            });
+
+          Interaction.bindCanvasElements();
+        },
+
+        renderElementNode(el, inGrid) {
+          if (el.type === 'card') return this.cardNode(el, !inGrid);
+          if (el.type === 'table') return this.tableNode(el);
+          if (el.type === 'text') return this.textNode(el);
+          if (el.type === 'image') return this.imageNode(el);
+          return this.tableNode(el);
+        },
+
+        cardNode(el, free) {
+          const node = document.createElement('div');
+          node.className = 'element';
+          node.dataset.id = el.id;
+          node.dataset.type = 'card';
+          node.style.position = free ? 'absolute' : 'relative';
+          const cardBg = el.style.gradient
+            ? `linear-gradient(135deg, ${toRgba(el.style.bg, el.style.bgAlpha ?? 0.18)} 0%, ${toRgba(el.style.bg2, el.style.bg2Alpha ?? 0.12)} 100%)`
+            : toRgba(el.style.bg, el.style.bgAlpha ?? 0.16);
+          const borderColor = toRgba(el.style.borderColor || '#d8e4fb', el.style.borderAlpha ?? 1);
+          const borderWidth = Number.isFinite(Number(el.style.borderWidth)) ? Number(el.style.borderWidth) : 1;
+          const accentBand = toRgba(el.style.accent || '#5b88ff', Math.min(1, (el.style.accentAlpha ?? 1) * 0.18));
+          const accentBandLine = toRgba(el.style.accent || '#5b88ff', Math.min(1, (el.style.accentAlpha ?? 1) * 0.26));
+          const badgeBg = toRgba(el.style.accent || '#5b88ff', Math.min(1, (el.style.accentAlpha ?? 1) * 0.16));
+          const badgeText = '#2d4f96';
+          const textAlpha = clampFloat(Number(el.style.textAlpha ?? 1), 0, 1);
+          const titleStyle = el.content?.titleStyle || {};
+          const bodyStyle = el.content?.bodyStyle || {};
+          const noteStyle = el.content?.noteStyle || {};
+          const badgeStyle = el.content?.badgeStyle || {};
+          node.style.background = cardBg;
+          node.style.color = toRgba(el.style.text || '#1f2b3d', el.style.textAlpha ?? 1);
+          node.style.borderRadius = clampNum(el.style.radius ?? state.theme.radius, 16, 20) + 'px';
+          node.style.border = `${clampNum(borderWidth, 1, 4)}px solid ${borderColor}`;
+          node.style.boxShadow = '0 6px 20px rgba(0,0,0,0.06)';
+          const titleText = [el.content.icon, el.content.title].filter(Boolean).join(' ');
+          node.innerHTML = `
+            <div class="card-body">
+              <div class="card-top" style="background:${accentBand}; border-bottom-color:${accentBandLine}">
+                <h3 style="font-size:${clampNum(titleStyle.size ?? 16, 10, 48)}px; font-weight:${titleStyle.bold ? 700 : 500}; font-style:${titleStyle.italic ? 'italic' : 'normal'}; color:${toRgba(titleStyle.color || el.style.text || '#1f2b3d', textAlpha)}; font-family:${fontStack(titleStyle.font)};">${escapeHtml(titleText)}</h3>
+                <span class="badge" style="background:${badgeBg}; color:${toRgba(badgeStyle.color || badgeText, clampFloat(Number(badgeStyle.alpha ?? 1), 0, 1))}; border-color:${accentBandLine}; font-size:${clampNum(badgeStyle.size ?? 11, 9, 30)}px; font-weight:${badgeStyle.bold ? 700 : 500}; font-style:${badgeStyle.italic ? 'italic' : 'normal'}; font-family:${fontStack(badgeStyle.font)};">${escapeHtml(el.content.badge)}</span>
+              </div>
+              <div class="card-content">
+                <ul class="card-list" style="font-size:${clampNum(bodyStyle.size ?? 13, 10, 36)}px; font-weight:${bodyStyle.bold ? 700 : 400}; font-style:${bodyStyle.italic ? 'italic' : 'normal'}; color:${toRgba(bodyStyle.color || el.style.text || '#1f2b3d', textAlpha)}; font-family:${fontStack(bodyStyle.font)};">${el.content.points.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>
+                ${this.cardInnerTableHtml(el)}
+                ${el.content.showNote === false ? '' : `<div class="note" style="font-size:${clampNum(noteStyle.size ?? 11, 9, 28)}px; font-weight:${noteStyle.bold ? 700 : 400}; font-style:${noteStyle.italic ? 'italic' : 'normal'}; color:${toRgba(noteStyle.color || '#66758b', textAlpha)}; font-family:${fontStack(noteStyle.font)};">${escapeHtml(el.content.note)}</div>`}
+              </div>
+            </div>
+          `;
+          node.appendChild(this.selectionControlsMarkup(el.id));
+          return node;
+        },
+
+        cardInnerTableHtml(el) {
+          const t = el.content?.innerTable;
+          if (!t?.enabled) return '';
+          ensureCardInnerTable(el);
+          const rows = clampNum(t.rows ?? 2, 1, 12);
+          const cols = clampNum(t.cols ?? 2, 1, 8);
+          const cells = ensureCellMatrix(t.cells, rows, cols);
+          const borderColor = t.borderColor || '#cfd9e8';
+          const bg = toRgba(t.bg || '#ffffff', t.bgAlpha ?? 1);
+          const text = toRgba(t.text || '#1f2b3d', t.textAlpha ?? 1);
+          const align = t.align || 'left';
+          const borderWidth = clampNum(t.borderWidth ?? 1, 1, 3);
+          const body = renderTableBody({
+            rows,
+            cols,
+            cells,
+            merges: t.merges,
+            dataset: `data-card-id="${el.id}"`
+          });
+          const x = clampNum(t.x ?? 12, 0, 4000);
+          const y = clampNum(t.y ?? 76, 0, 4000);
+          const w = clampNum(t.w ?? 160, 80, 4000);
+          const h = clampNum(t.h ?? 96, 56, 4000);
+          const selected = state.ui.tableSelection?.kind === 'inner' && state.ui.tableSelection?.cardId === el.id;
+          return `
+            <div class="card-inner-table-host ${selected ? 'selected' : ''}" data-card-id="${el.id}" style="left:${x}px; top:${y}px; width:${w}px; height:${h}px;">
+              <div class="card-inner-table-wrap" style="border-color:${toRgba(borderColor, 0.35)}; height:100%; border-radius:${clampNum(t.radius ?? 18, 0, 40)}px;">
+              <table class="card-inner-table" style="
+                color:${text};
+                background:${bg};
+                text-align:${align};
+                font-size:${clampNum(t.fontSize ?? 12, 10, 36)}px;
+                font-weight:${t.bold ? 700 : 400};
+                font-style:${t.italic ? 'italic' : 'normal'};
+                font-family:${fontStack(t.font)};
+                --inner-border-color:${toRgba(borderColor, t.borderAlpha ?? 0.85)};
+                --inner-border-width:${borderWidth}px;
+              ">
+                <tbody>${body}</tbody>
+              </table>
+              </div>
+              <span class="inner-table-resize" data-role="inner-table-resize" data-card-id="${el.id}"></span>
+            </div>
+          `;
+        },
+
+        imageNode(el) {
+          const node = document.createElement('div');
+          node.className = 'element';
+          node.dataset.id = el.id;
+          node.dataset.type = 'image';
+          node.style.opacity = String(clampFloat(Number(el.style?.opacity ?? 1), 0.1, 1));
+          node.style.setProperty('--img-fit', el.style?.fit || 'contain');
+          node.innerHTML = `
+            <div class="image-body">
+              ${el.image?.src ? `<img src="${escapeAttr(el.image.src)}" alt="${escapeAttr(el.name || 'image')}" />` : '<span class="muted">图片已丢失</span>'}
+            </div>
+          `;
+          node.appendChild(this.selectionControlsMarkup(el.id));
+          return node;
+        },
+
+        textNode(el) {
+          ensureTextElement(el);
+          const node = document.createElement('div');
+          node.className = 'element';
+          node.dataset.id = el.id;
+          node.dataset.type = 'text';
+          const align = el.style.align || 'left';
+          const showBorder = el.style.showBorder !== false;
+          const borderColor = toRgba(el.style.borderColor || '#94a3b8', el.style.borderAlpha ?? 0.38);
+          const borderWidth = clampNum(el.style.borderWidth ?? 1, 0, 12);
+          const borderStyle = ['solid', 'dashed', 'dotted', 'double'].includes(el.style.borderStyle) ? el.style.borderStyle : 'dashed';
+          node.style.background = toRgba(el.style.bg || '#ffffff', el.style.bgAlpha ?? 0);
+          node.style.border = showBorder ? `${borderWidth}px ${borderStyle} ${borderColor}` : 'none';
+          node.style.borderRadius = clampNum(el.style.radius ?? 16, 8, 40) + 'px';
+          node.style.boxShadow = 'none';
+          node.innerHTML = `
+            <div class="text-body" style="
+              color:${toRgba(el.style.text || '#111827', el.style.textAlpha ?? 1)};
+              font-size:${clampNum(el.style.fontSize ?? 24, 10, 120)}px;
+              font-weight:${el.style.bold ? 700 : 400};
+              font-style:${el.style.italic ? 'italic' : 'normal'};
+              text-decoration:${el.style.underline ? 'underline' : 'none'};
+              text-align:${align};
+              justify-content:${align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start'};
+              font-family:${fontStack(el.style.font)};
+            ">${escapeHtml(el.text?.value || '文本')}</div>
+          `;
+          node.appendChild(this.selectionControlsMarkup(el.id));
+          return node;
+        },
+
+        tableNode(el) {
+          ensureTableElement(el);
+          const node = document.createElement('div');
+          node.className = 'element';
+          node.dataset.id = el.id;
+          node.dataset.type = 'table';
+          const tbody = renderTableBody({
+            rows: el.table.rows,
+            cols: el.table.cols,
+            cells: el.table.cells,
+            merges: el.table.merges,
+            dataset: `data-table-id="${el.id}"`
+          });
+
+          node.innerHTML = `
+            <div class="table-wrap" style="border-radius:${clampNum(el.style.radius ?? 18, 0, 40)}px;">
+              <table class="editor-table" style="
+                color:${toRgba(el.style.text || '#1f2b3d', el.style.textAlpha ?? 1)};
+                background:${toRgba(el.style.bg || '#ffffff', el.style.bgAlpha ?? 1)};
+                font-size:${clampNum(el.style.fontSize ?? 13, 10, 36)}px;
+                font-weight:${el.style.bold ? 700 : 400};
+                font-style:${el.style.italic ? 'italic' : 'normal'};
+                font-family:${fontStack(el.style.font)};
+                --inner-border-color:${toRgba(el.style.border || '#cfd9e8', el.style.borderAlpha ?? 1)};
+                --inner-border-width:1px;
+              ">
+                <tbody>${tbody}</tbody>
+              </table>
+            </div>
+          `;
+
+          node.appendChild(this.selectionControlsMarkup(el.id));
+          return node;
+        },
+
+        selectionControlsMarkup(id) {
+          const wrap = document.createElement('div');
+          wrap.className = 'element-controls';
+          wrap.innerHTML = `
+            <button class="element-delete element-control" data-role="delete" data-id="${id}" title="删除">✕</button>
+            <span class="resize-handle h-nw element-control" data-role="resize" data-handle="nw" data-id="${id}"></span>
+            <span class="resize-handle h-ne element-control" data-role="resize" data-handle="ne" data-id="${id}"></span>
+            <span class="resize-handle h-se element-control" data-role="resize" data-handle="se" data-id="${id}"></span>
+            <span class="resize-handle h-sw element-control" data-role="resize" data-handle="sw" data-id="${id}"></span>
+          `;
+          return wrap;
+        },
+
+        renderLayerPanel() {
+          refs.layerPanel.innerHTML = state.elements.slice().sort((a,b) => b.z-a.z).map(el => {
+            const active = state.ui.selectedIds.includes(el.id) ? 'active' : '';
+            const typeName = I18N[state.ui.locale === 'en' ? 'en' : 'zh'].layerType[el.type] || el.type;
+            const upText = isEN() ? 'Up' : '上';
+            const downText = isEN() ? 'Down' : '下';
+            const delText = isEN() ? 'Del' : '删';
+            return `
+              <div class="layer ${active}" data-id="${el.id}">
+                <div>
+                  <div>${escapeHtml(el.name)} <small>(${typeName})</small></div>
+                  <small>${el.id} · z:${el.z}</small>
+                </div>
+                <div style="display:flex; gap:4px;">
+                  <button class="btn secondary" data-z-up="${el.id}" style="padding:3px 7px; width:auto;">${upText}</button>
+                  <button class="btn secondary" data-z-down="${el.id}" style="padding:3px 7px; width:auto;">${downText}</button>
+                  <button class="btn warn" data-del="${el.id}" style="padding:3px 7px; width:auto;">${delText}</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          refs.layerPanel.querySelectorAll('.layer').forEach(node => {
+            const id = node.dataset.id;
+            node.onclick = (e) => {
+              if (e.target.dataset.del) return;
+              State.toggleSelect(id, e.shiftKey);
+            };
+          });
+
+          refs.layerPanel.querySelectorAll('button[data-del]').forEach(btn => {
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              const id = btn.dataset.del;
+              Interaction.deleteElement(id);
+            };
+          });
+
+          refs.layerPanel.querySelectorAll('button[data-z-up]').forEach(btn => {
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              Interaction.adjustLayerZ(btn.dataset.zUp, 1);
+            };
+          });
+
+          refs.layerPanel.querySelectorAll('button[data-z-down]').forEach(btn => {
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              Interaction.adjustLayerZ(btn.dataset.zDown, -1);
+            };
+          });
+        },
+
+        renderSelectionPanel() {
+          const selected = State.getSelected();
+          if (!selected.length) {
+            refs.selectionPanel.innerHTML = `<div class="muted">${t('noSelect')}</div>`;
+            return;
+          }
+
+          if (selected.length > 1) {
+            const selectedText = isEN() ? `Selected ${selected.length} elements` : `已选中 ${selected.length} 个元素`;
+            const leftText = isEN() ? 'Align Left' : '左对齐';
+            const topText = isEN() ? 'Align Top' : '顶对齐';
+            const centerText = isEN() ? 'Center X' : '水平居中';
+            const distText = isEN() ? 'Distribute X' : '水平分布';
+            refs.selectionPanel.innerHTML = `
+              <div class="muted">${selectedText}</div>
+              <div class="row">
+                <button class="btn secondary" id="selAlignLeft">${leftText}</button>
+                <button class="btn secondary" id="selAlignTop">${topText}</button>
+              </div>
+              <div class="row">
+                <button class="btn secondary" id="selAlignCenter">${centerText}</button>
+                <button class="btn secondary" id="selDistributeX">${distText}</button>
+              </div>
+            `;
+            if (isEN()) refs.selectionPanel.innerHTML = translateSelectionHtmlToEn(refs.selectionPanel.innerHTML);
+            refs.selectionPanel.querySelector('#selAlignLeft').onclick = () => Interaction.alignSelected('left');
+            refs.selectionPanel.querySelector('#selAlignTop').onclick = () => Interaction.alignSelected('top');
+            refs.selectionPanel.querySelector('#selAlignCenter').onclick = () => Interaction.alignSelected('centerX');
+            refs.selectionPanel.querySelector('#selDistributeX').onclick = () => Interaction.distributeSelected('x');
+            return;
+          }
+
+          const el = selected[0];
+          const cellSel = getCellSelectionForElement(el, state.ui.tableSelection);
+          const innerCellStyle = cellSel?.kind === 'inner' ? getCellStyleForRange(el.content?.innerTable, cellSel.rect) : null;
+          const tableCellStyle = cellSel?.kind === 'table' ? getCellStyleForRange(el.table, cellSel.rect) : null;
+          refs.selectionPanel.innerHTML = `
+            <div><label>名称</label><input id="sName" value="${escapeAttr(el.name)}" /></div>
+            <div class="row">
+              <div><label>X</label><input type="number" id="sX" value="${Math.round(el.x)}" /></div>
+              <div><label>Y</label><input type="number" id="sY" value="${Math.round(el.y)}" /></div>
+            </div>
+            <div class="row">
+              <div><label>宽</label><input type="number" id="sW" value="${Math.round(el.w)}" /></div>
+              <div><label>高</label><input type="number" id="sH" value="${Math.round(el.h)}" /></div>
+            </div>
+            ${el.type === 'card' ? `
+              <div><label>标题</label><input id="sTitle" value="${escapeAttr(el.content.title)}" /></div>
+              <div><label>标签</label><input id="sBadge" value="${escapeAttr(el.content.badge || '')}" /></div>
+              <div class="row">
+                <div><label>标签字号</label><input type="number" id="sBadgeSize" min="9" max="30" value="${escapeAttr(String(el.content?.badgeStyle?.size ?? 11))}" /></div>
+                <div><label>标签颜色</label><input type="color" id="sBadgeColor" value="${escapeAttr(toHexColor(el.content?.badgeStyle?.color || '#2d4f96'))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>标签透明度</label><input type="range" id="sBadgeAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.content?.badgeStyle?.alpha ?? 1))}" /></div>
+                <div><label>标签字体</label><select id="sBadgeFont">${Fonts.optionHtml(el.content?.badgeStyle?.font || '系统默认')}</select></div>
+              </div>
+              <label><input type="checkbox" id="sBadgeBold" ${el.content?.badgeStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />标签加粗</label>
+              <label><input type="checkbox" id="sBadgeItalic" ${el.content?.badgeStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />标签斜体</label>
+              <div><label>要点（每行一条）</label><textarea id="sPoints">${escapeHtml(el.content.points.join('\n'))}</textarea></div>
+              <div><label>底部注释</label><input id="sNote" value="${escapeAttr(el.content.note)}" /></div>
+              <label><input type="checkbox" id="sShowNote" ${el.content.showNote === false ? '' : 'checked'} style="width:auto; margin-right:6px;" />显示底部注释条</label>
+              <div class="row">
+                <div>
+                  <label>卡片配色预设</label>
+                  <select id="sCardPreset">${Object.entries(CARD_PALETTES).map(([key, p]) => `<option value="${key}">${isEN() ? (p.en || p.name) : p.name}</option>`).join('')}</select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                  <button class="btn secondary" id="sApplyCardPreset">应用到此卡片</button>
+                </div>
+              </div>
+              <div class="row">
+                <div><label>卡片主色</label><input type="color" id="sCardBg" value="${escapeAttr(toHexColor(el.style.bg || '#e9f2ff'))}" /></div>
+                <div><label>卡片辅色</label><input type="color" id="sCardBg2" value="${escapeAttr(toHexColor(el.style.bg2 || '#f7fbff'))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>主色透明度</label><input type="range" id="sCardBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style.bgAlpha ?? 0.18))}" /></div>
+                <div><label>辅色透明度</label><input type="range" id="sCardBg2Alpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style.bg2Alpha ?? 0.12))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>边框颜色</label><input type="color" id="sCardBorderColor" value="${escapeAttr(toHexColor(el.style.borderColor || '#d8e4fb'))}" /></div>
+                <div><label>边框粗细(px)</label><input type="number" id="sCardBorderWidth" min="1" max="4" value="${escapeAttr(String(el.style.borderWidth ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>边框透明度</label><input type="range" id="sCardBorderAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style.borderAlpha ?? 1))}" /></div>
+                <div><label>文字透明度</label><input type="range" id="sCardTextAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style.textAlpha ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>标题字号</label><input type="number" id="sTitleSize" min="10" max="48" value="${escapeAttr(String(el.content?.titleStyle?.size ?? 16))}" /></div>
+                <div><label>标题颜色</label><input type="color" id="sTitleColor" value="${escapeAttr(toHexColor(el.content?.titleStyle?.color || '#1f2b3d'))}" /></div>
+              </div>
+              <div><label>标题字体</label><select id="sTitleFont">${Fonts.optionHtml(el.content?.titleStyle?.font || '系统默认')}</select></div>
+              <label><input type="checkbox" id="sTitleBold" ${el.content?.titleStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />标题加粗</label>
+              <label><input type="checkbox" id="sTitleItalic" ${el.content?.titleStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />标题斜体</label>
+              <div class="row">
+                <div><label>正文字号</label><input type="number" id="sBodySize" min="10" max="36" value="${escapeAttr(String(el.content?.bodyStyle?.size ?? 13))}" /></div>
+                <div><label>正文颜色</label><input type="color" id="sBodyColor" value="${escapeAttr(toHexColor(el.content?.bodyStyle?.color || '#1f2b3d'))}" /></div>
+              </div>
+              <div><label>正文字体</label><select id="sBodyFont">${Fonts.optionHtml(el.content?.bodyStyle?.font || '系统默认')}</select></div>
+              <label><input type="checkbox" id="sBodyBold" ${el.content?.bodyStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />正文加粗</label>
+              <label><input type="checkbox" id="sBodyItalic" ${el.content?.bodyStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />正文斜体</label>
+              <div class="row">
+                <div><label>注释字号</label><input type="number" id="sNoteSize" min="9" max="28" value="${escapeAttr(String(el.content?.noteStyle?.size ?? 11))}" /></div>
+                <div><label>注释颜色</label><input type="color" id="sNoteColor" value="${escapeAttr(toHexColor(el.content?.noteStyle?.color || '#66758b'))}" /></div>
+              </div>
+              <div><label>注释字体</label><select id="sNoteFont">${Fonts.optionHtml(el.content?.noteStyle?.font || '系统默认')}</select></div>
+              <label><input type="checkbox" id="sNoteBold" ${el.content?.noteStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />注释加粗</label>
+              <label><input type="checkbox" id="sNoteItalic" ${el.content?.noteStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />注释斜体</label>
+              <div>
+                <label><input type="checkbox" id="sInnerTableEnabled" ${el.content?.innerTable?.enabled ? 'checked' : ''} style="width:auto; margin-right:6px;" />卡片内嵌表格</label>
+              </div>
+              <div class="row">
+                <div><label>表格行</label><input type="number" id="sInnerTableRows" min="1" max="12" value="${escapeAttr(String(el.content?.innerTable?.rows ?? 2))}" /></div>
+                <div><label>表格列</label><input type="number" id="sInnerTableCols" min="1" max="8" value="${escapeAttr(String(el.content?.innerTable?.cols ?? 2))}" /></div>
+              </div>
+              <div class="row">
+                <button class="btn secondary" id="sInnerTableAddRow">+行</button>
+                <button class="btn secondary" id="sInnerTableDelRow">-行</button>
+              </div>
+              <div class="row">
+                <button class="btn secondary" id="sInnerTableAddCol">+列</button>
+                <button class="btn secondary" id="sInnerTableDelCol">-列</button>
+              </div>
+              <div class="row">
+                <div><label>表格边框色</label><input type="color" id="sInnerTableBorder" value="${escapeAttr(toHexColor(el.content?.innerTable?.borderColor || '#cfd9e8'))}" /></div>
+                <div><label>边框粗细(px)</label><input type="number" id="sInnerTableBorderWidth" min="1" max="3" value="${escapeAttr(String(el.content?.innerTable?.borderWidth ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>表格底色</label><input type="color" id="sInnerTableBg" value="${escapeAttr(toHexColor(el.content?.innerTable?.bg || '#ffffff'))}" /></div>
+                <div><label>文字色</label><input type="color" id="sInnerTableText" value="${escapeAttr(toHexColor(el.content?.innerTable?.text || '#1f2b3d'))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>底色透明度</label><input type="range" id="sInnerTableBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.content?.innerTable?.bgAlpha ?? 1))}" /></div>
+                <div><label>文字透明度</label><input type="range" id="sInnerTableTextAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.content?.innerTable?.textAlpha ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>边框透明度</label><input type="range" id="sInnerTableBorderAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.content?.innerTable?.borderAlpha ?? 1))}" /></div>
+                <div><label>字号</label><input type="number" id="sInnerTableFontSize" min="10" max="36" value="${escapeAttr(String(el.content?.innerTable?.fontSize ?? 12))}" /></div>
+              </div>
+              <div><label>字体</label><select id="sInnerTableFont">${Fonts.optionHtml(el.content?.innerTable?.font || '系统默认')}</select></div>
+              <div class="row">
+                <div><label>圆角(px)</label><input type="number" id="sInnerTableRadius" min="0" max="40" value="${escapeAttr(String(el.content?.innerTable?.radius ?? 18))}" /></div>
+                <div></div>
+              </div>
+              <label><input type="checkbox" id="sInnerTableBold" ${el.content?.innerTable?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />表格文字加粗</label>
+              <label><input type="checkbox" id="sInnerTableItalic" ${el.content?.innerTable?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />表格文字斜体</label>
+              <div>
+                <label>对齐</label>
+                <select id="sInnerTableAlign">
+                  <option value="left" ${el.content?.innerTable?.align === 'left' ? 'selected' : ''}>左对齐</option>
+                  <option value="center" ${el.content?.innerTable?.align === 'center' ? 'selected' : ''}>居中</option>
+                  <option value="right" ${el.content?.innerTable?.align === 'right' ? 'selected' : ''}>右对齐</option>
+                </select>
+              </div>
+              <div>
+                <label>表格单元格文本（每行一行，列用 | 分隔）</label>
+                <textarea id="sInnerTableData">${escapeHtml(serializeCellMatrix(el.content?.innerTable?.cells || []))}</textarea>
+              </div>
+              <button class="btn secondary" id="sInnerTableMerge">合并选中单元格</button>
+              <button class="btn secondary" id="sInnerTableUnmerge">取消合并（选中起点）</button>
+              ${cellSel?.kind === 'inner' ? `
+                <div class="row">
+                  <div><label>单元格底色</label><input type="color" id="sInnerCellBg" value="${escapeAttr(toHexColor(innerCellStyle?.bg || '#ffffff'))}" /></div>
+                  <div><label>底色透明度</label><input type="range" id="sInnerCellBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(innerCellStyle?.bgAlpha ?? 1))}" /></div>
+                </div>
+                <div class="row">
+                  <div><label>单元格文字色</label><input type="color" id="sInnerCellText" value="${escapeAttr(toHexColor(innerCellStyle?.color || '#1f2b3d'))}" /></div>
+                  <div><label>文字透明度</label><input type="range" id="sInnerCellTextAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(innerCellStyle?.textAlpha ?? 1))}" /></div>
+                </div>
+                <div class="row">
+                  <div><label>单元格字号</label><input type="number" id="sInnerCellFontSize" min="10" max="36" value="${escapeAttr(String(innerCellStyle?.fontSize ?? 12))}" /></div>
+                  <div></div>
+                </div>
+                <div><label>单元格字体</label><select id="sInnerCellFont">${Fonts.optionHtml(innerCellStyle?.font || (el.content?.innerTable?.font || '系统默认'))}</select></div>
+                <label><input type="checkbox" id="sInnerCellBold" ${innerCellStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />单元格文字加粗</label>
+                <label><input type="checkbox" id="sInnerCellItalic" ${innerCellStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />单元格文字斜体</label>
+              ` : `<div class="muted">在卡片内表格中拖选单元格后，可设置单元格样式</div>`}
+            ` : ''}
+            ${el.type === 'table' ? `
+              <div class="row">
+                <button class="btn secondary" id="tblAddRow">+行</button>
+                <button class="btn secondary" id="tblDelRow">-行</button>
+              </div>
+              <div class="row">
+                <button class="btn secondary" id="tblAddCol">+列</button>
+                <button class="btn secondary" id="tblDelCol">-列</button>
+              </div>
+              <div class="row">
+                <div><label>表格底色</label><input type="color" id="sTblBg" value="${escapeAttr(toHexColor(el.style?.bg || '#ffffff'))}" /></div>
+                <div><label>文字色</label><input type="color" id="sTblText" value="${escapeAttr(toHexColor(el.style?.text || '#1f2b3d'))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>底色透明度</label><input type="range" id="sTblBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.bgAlpha ?? 1))}" /></div>
+                <div><label>文字透明度</label><input type="range" id="sTblTextAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.textAlpha ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>边框色</label><input type="color" id="sTblBorder" value="${escapeAttr(toHexColor(el.style?.border || '#cfd9e8'))}" /></div>
+                <div><label>边框透明度</label><input type="range" id="sTblBorderAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.borderAlpha ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>字号</label><input type="number" id="sTblFontSize" min="10" max="36" value="${escapeAttr(String(el.style?.fontSize ?? 13))}" /></div>
+                <div><label>圆角(px)</label><input type="number" id="sTblRadius" min="0" max="40" value="${escapeAttr(String(el.style?.radius ?? 18))}" /></div>
+              </div>
+              <div><label>字体</label><select id="sTblFont">${Fonts.optionHtml(el.style?.font || '系统默认')}</select></div>
+              <label><input type="checkbox" id="sTblBold" ${el.style?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />文字加粗</label>
+              <label><input type="checkbox" id="sTblItalic" ${el.style?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />文字斜体</label>
+              <button class="btn secondary" id="tblMergeCellsBtn">合并选中单元格</button>
+              <button class="btn secondary" id="tblUnmergeCellsBtn">取消合并（选中起点）</button>
+              ${cellSel?.kind === 'table' ? `
+                <div class="row">
+                  <div><label>单元格底色</label><input type="color" id="sTblCellBg" value="${escapeAttr(toHexColor(tableCellStyle?.bg || '#ffffff'))}" /></div>
+                  <div><label>底色透明度</label><input type="range" id="sTblCellBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(tableCellStyle?.bgAlpha ?? 1))}" /></div>
+                </div>
+                <div class="row">
+                  <div><label>单元格文字色</label><input type="color" id="sTblCellText" value="${escapeAttr(toHexColor(tableCellStyle?.color || '#1f2b3d'))}" /></div>
+                  <div><label>文字透明度</label><input type="range" id="sTblCellTextAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(tableCellStyle?.textAlpha ?? 1))}" /></div>
+                </div>
+                <div class="row">
+                  <div><label>单元格字号</label><input type="number" id="sTblCellFontSize" min="10" max="36" value="${escapeAttr(String(tableCellStyle?.fontSize ?? (el.style?.fontSize ?? 13)))}" /></div>
+                  <div></div>
+                </div>
+                <div><label>单元格字体</label><select id="sTblCellFont">${Fonts.optionHtml(tableCellStyle?.font || (el.style?.font || '系统默认'))}</select></div>
+                <label><input type="checkbox" id="sTblCellBold" ${tableCellStyle?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />单元格文字加粗</label>
+                <label><input type="checkbox" id="sTblCellItalic" ${tableCellStyle?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />单元格文字斜体</label>
+              ` : `<div class="muted">在表格中拖选单元格后，可设置单元格样式</div>`}
+            ` : ''}
+            ${el.type === 'text' ? `
+              <div><label>文本内容</label><textarea id="sTxtValue">${escapeHtml(el.text?.value || '')}</textarea></div>
+              <div class="row">
+                <div><label>字号</label><input type="number" id="sTxtSize" min="10" max="120" value="${escapeAttr(String(el.style?.fontSize ?? 24))}" /></div>
+                <div><label>字体</label><select id="sTxtFont">${Fonts.optionHtml(el.style?.font || '系统默认')}</select></div>
+              </div>
+              <div class="row">
+                <div><label>文字颜色</label><input type="color" id="sTxtColor" value="${escapeAttr(toHexColor(el.style?.text || '#111827'))}" /></div>
+                <div><label>文字透明度</label><input type="range" id="sTxtAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.textAlpha ?? 1))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>背景色</label><input type="color" id="sTxtBg" value="${escapeAttr(toHexColor(el.style?.bg || '#ffffff'))}" /></div>
+                <div><label>背景透明度</label><input type="range" id="sTxtBgAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.bgAlpha ?? 0))}" /></div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>对齐</label>
+                  <select id="sTxtAlign">
+                    <option value="left" ${el.style?.align === 'left' ? 'selected' : ''}>左对齐</option>
+                    <option value="center" ${el.style?.align === 'center' ? 'selected' : ''}>居中</option>
+                    <option value="right" ${el.style?.align === 'right' ? 'selected' : ''}>右对齐</option>
+                  </select>
+                </div>
+                <div><label>圆角</label><input type="number" id="sTxtRadius" min="8" max="40" value="${escapeAttr(String(el.style?.radius ?? 16))}" /></div>
+              </div>
+              <label><input type="checkbox" id="sTxtShowBorder" ${el.style?.showBorder === false ? '' : 'checked'} style="width:auto; margin-right:6px;" />显示边框</label>
+              <div class="row">
+                <div><label>边框颜色</label><input type="color" id="sTxtBorderColor" value="${escapeAttr(toHexColor(el.style?.borderColor || '#94a3b8'))}" /></div>
+                <div><label>边框透明度</label><input type="range" id="sTxtBorderAlpha" min="0" max="1" step="0.05" value="${escapeAttr(String(el.style?.borderAlpha ?? 0.38))}" /></div>
+              </div>
+              <div class="row">
+                <div><label>边框粗细</label><input type="number" id="sTxtBorderWidth" min="0" max="12" value="${escapeAttr(String(el.style?.borderWidth ?? 1))}" /></div>
+                <div>
+                  <label>边框样式</label>
+                  <select id="sTxtBorderStyle">
+                    <option value="solid" ${el.style?.borderStyle === 'solid' ? 'selected' : ''}>实线</option>
+                    <option value="dashed" ${!el.style?.borderStyle || el.style?.borderStyle === 'dashed' ? 'selected' : ''}>虚线</option>
+                    <option value="dotted" ${el.style?.borderStyle === 'dotted' ? 'selected' : ''}>点线</option>
+                    <option value="double" ${el.style?.borderStyle === 'double' ? 'selected' : ''}>双线</option>
+                  </select>
+                </div>
+              </div>
+              <label><input type="checkbox" id="sTxtBold" ${el.style?.bold ? 'checked' : ''} style="width:auto; margin-right:6px;" />加粗</label>
+              <label><input type="checkbox" id="sTxtItalic" ${el.style?.italic ? 'checked' : ''} style="width:auto; margin-right:6px;" />斜体</label>
+              <label><input type="checkbox" id="sTxtUnderline" ${el.style?.underline ? 'checked' : ''} style="width:auto; margin-right:6px;" />下划线</label>
+            ` : ''}
+            ${el.type === 'image' ? `
+              <div class="row">
+                <div>
+                  <label>图片适配</label>
+                  <select id="sImgFit">
+                    <option value="contain" ${el.style?.fit === 'contain' ? 'selected' : ''}>Contain</option>
+                    <option value="cover" ${el.style?.fit === 'cover' ? 'selected' : ''}>Cover</option>
+                    <option value="fill" ${el.style?.fit === 'fill' ? 'selected' : ''}>Fill</option>
+                  </select>
+                </div>
+                <div><label>透明度</label><input type="range" id="sImgOpacity" min="0.1" max="1" step="0.05" value="${escapeAttr(String(el.style?.opacity ?? 1))}" /></div>
+              </div>
+            ` : ''}
+          `;
+          if (isEN()) refs.selectionPanel.innerHTML = translateSelectionHtmlToEn(refs.selectionPanel.innerHTML);
+
+          bind('#sName', 'input', v => el.name = v);
+          bind('#sX', 'input', v => el.x = clampNum(v, 0, state.canvas.width - 20));
+          bind('#sY', 'input', v => el.y = clampNum(v, 0, state.canvas.height - 20));
+          bind('#sW', 'input', v => el.w = clampNum(v, 60, state.canvas.width));
+          bind('#sH', 'input', v => el.h = clampNum(v, 60, state.canvas.height));
+
+          if (el.type === 'card') {
+            ensureCardInnerTable(el);
+            el.style = el.style || {};
+            el.style.borderColor = el.style.borderColor || '#d8e4fb';
+            el.style.borderWidth = clampNum(el.style.borderWidth ?? 1, 1, 4);
+            el.style.borderAlpha = clampFloat(Number(el.style.borderAlpha ?? 1), 0, 1);
+            el.style.textAlpha = clampFloat(Number(el.style.textAlpha ?? 1), 0, 1);
+            if (!el.content.titleStyle) el.content.titleStyle = { size: 16, bold: true, italic: false, color: '#1f2b3d', font: '系统默认' };
+            if (!el.content.bodyStyle) el.content.bodyStyle = { size: 13, bold: false, italic: false, color: '#1f2b3d', font: '系统默认' };
+            if (!el.content.noteStyle) el.content.noteStyle = { size: 11, bold: false, italic: false, color: '#66758b', font: '系统默认' };
+            if (!el.content.badgeStyle) el.content.badgeStyle = { size: 11, bold: true, italic: false, color: '#2d4f96', alpha: 1, font: '系统默认' };
+            el.content.titleStyle.font = el.content.titleStyle.font || '系统默认';
+            el.content.bodyStyle.font = el.content.bodyStyle.font || '系统默认';
+            el.content.noteStyle.font = el.content.noteStyle.font || '系统默认';
+            el.content.badgeStyle.font = el.content.badgeStyle.font || '系统默认';
+            el.content.innerTable.font = el.content.innerTable.font || '系统默认';
+            bind('#sTitle', 'input', v => el.content.title = v);
+            bind('#sBadge', 'input', v => el.content.badge = v);
+            bind('#sBadgeSize', 'input', v => el.content.badgeStyle.size = clampNum(v, 9, 30));
+            bind('#sBadgeColor', 'input', v => el.content.badgeStyle.color = v);
+            bind('#sBadgeAlpha', 'input', v => el.content.badgeStyle.alpha = clampFloat(Number(v), 0, 1));
+            bind('#sBadgeFont', 'change', v => el.content.badgeStyle.font = v);
+            refs.selectionPanel.querySelector('#sBadgeBold').onchange = (e) => { el.content.badgeStyle.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sBadgeItalic').onchange = (e) => { el.content.badgeStyle.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            bind('#sPoints', 'input', v => el.content.points = String(v).split('\n').map(x => x.trim()).filter(Boolean));
+            bind('#sNote', 'input', v => el.content.note = v);
+            refs.selectionPanel.querySelector('#sShowNote').onchange = (e) => { el.content.showNote = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            bind('#sCardBg', 'input', v => el.style.bg = v);
+            bind('#sCardBg2', 'input', v => el.style.bg2 = v);
+            bind('#sCardBgAlpha', 'input', v => el.style.bgAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sCardBg2Alpha', 'input', v => el.style.bg2Alpha = clampFloat(Number(v), 0, 1));
+            bind('#sCardBorderColor', 'input', v => el.style.borderColor = v);
+            bind('#sCardBorderWidth', 'input', v => el.style.borderWidth = clampNum(v, 1, 4));
+            bind('#sCardBorderAlpha', 'input', v => el.style.borderAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sCardTextAlpha', 'input', v => el.style.textAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sTitleSize', 'input', v => el.content.titleStyle.size = clampNum(v, 10, 48));
+            bind('#sTitleColor', 'input', v => el.content.titleStyle.color = v);
+            bind('#sTitleFont', 'change', v => el.content.titleStyle.font = v);
+            refs.selectionPanel.querySelector('#sTitleBold').onchange = (e) => { el.content.titleStyle.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sTitleItalic').onchange = (e) => { el.content.titleStyle.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            bind('#sBodySize', 'input', v => el.content.bodyStyle.size = clampNum(v, 10, 36));
+            bind('#sBodyColor', 'input', v => el.content.bodyStyle.color = v);
+            bind('#sBodyFont', 'change', v => el.content.bodyStyle.font = v);
+            refs.selectionPanel.querySelector('#sBodyBold').onchange = (e) => { el.content.bodyStyle.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sBodyItalic').onchange = (e) => { el.content.bodyStyle.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            bind('#sNoteSize', 'input', v => el.content.noteStyle.size = clampNum(v, 9, 28));
+            bind('#sNoteColor', 'input', v => el.content.noteStyle.color = v);
+            bind('#sNoteFont', 'change', v => el.content.noteStyle.font = v);
+            refs.selectionPanel.querySelector('#sNoteBold').onchange = (e) => { el.content.noteStyle.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sNoteItalic').onchange = (e) => { el.content.noteStyle.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sApplyCardPreset').onclick = () => {
+              const key = refs.selectionPanel.querySelector('#sCardPreset').value;
+              Renderer.applyCardPalette(el, key);
+              Renderer.renderSelectionPanel();
+            };
+            refs.selectionPanel.querySelector('#sInnerTableEnabled').onchange = (e) => {
+              el.content.innerTable.enabled = !!e.target.checked;
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            bind('#sInnerTableRows', 'input', v => {
+              const rows = clampNum(v, 1, 12);
+              resizeCellMatrix(el.content.innerTable, rows, el.content.innerTable.cols);
+            });
+            bind('#sInnerTableCols', 'input', v => {
+              const cols = clampNum(v, 1, 8);
+              resizeCellMatrix(el.content.innerTable, el.content.innerTable.rows, cols);
+            });
+            bind('#sInnerTableBorder', 'input', v => el.content.innerTable.borderColor = v);
+            bind('#sInnerTableBorderWidth', 'input', v => el.content.innerTable.borderWidth = clampNum(v, 1, 3));
+            if (cellSel?.kind === 'inner') {
+              bind('#sInnerTableBg', 'input', v => applyCellStyleToSelection(el, cellSel, { bg: v }));
+              bind('#sInnerTableText', 'input', v => applyCellStyleToSelection(el, cellSel, { color: v }));
+              bind('#sInnerTableBgAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { bgAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sInnerTableTextAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { textAlpha: clampFloat(Number(v), 0, 1) }));
+            } else {
+              bind('#sInnerTableBg', 'input', v => el.content.innerTable.bg = v);
+              bind('#sInnerTableText', 'input', v => el.content.innerTable.text = v);
+              bind('#sInnerTableBgAlpha', 'input', v => el.content.innerTable.bgAlpha = clampFloat(Number(v), 0, 1));
+              bind('#sInnerTableTextAlpha', 'input', v => el.content.innerTable.textAlpha = clampFloat(Number(v), 0, 1));
+            }
+            bind('#sInnerTableBorderAlpha', 'input', v => el.content.innerTable.borderAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sInnerTableFontSize', 'input', v => el.content.innerTable.fontSize = clampNum(v, 10, 36));
+            bind('#sInnerTableFont', 'change', v => el.content.innerTable.font = v);
+            bind('#sInnerTableRadius', 'input', v => el.content.innerTable.radius = clampNum(v, 0, 40));
+            refs.selectionPanel.querySelector('#sInnerTableBold').onchange = (e) => { el.content.innerTable.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sInnerTableItalic').onchange = (e) => { el.content.innerTable.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            bind('#sInnerTableAlign', 'change', v => el.content.innerTable.align = v);
+            bind('#sInnerTableData', 'input', v => {
+              const parsed = parseCellMatrix(v, el.content.innerTable.rows, el.content.innerTable.cols, el.content.innerTable.cells);
+              el.content.innerTable.cells = parsed;
+            });
+            refs.selectionPanel.querySelector('#sInnerTableMerge').onclick = () => {
+              TableOps.mergeCells(el.id, state.ui.tableSelection, 'inner');
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            refs.selectionPanel.querySelector('#sInnerTableUnmerge').onclick = () => {
+              TableOps.unmergeAt(el.id, state.ui.tableSelection, 'inner');
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            if (cellSel?.kind === 'inner') {
+              bind('#sInnerCellBg', 'input', v => applyCellStyleToSelection(el, cellSel, { bg: v }));
+              bind('#sInnerCellBgAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { bgAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sInnerCellText', 'input', v => applyCellStyleToSelection(el, cellSel, { color: v }));
+              bind('#sInnerCellTextAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { textAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sInnerCellFontSize', 'input', v => applyCellStyleToSelection(el, cellSel, { fontSize: clampNum(v, 10, 36) }));
+              bind('#sInnerCellFont', 'change', v => applyCellStyleToSelection(el, cellSel, { font: v }));
+              refs.selectionPanel.querySelector('#sInnerCellBold').onchange = (e) => { applyCellStyleToSelection(el, cellSel, { bold: !!e.target.checked }); Renderer.renderCanvas(); Renderer.syncJSON(); };
+              refs.selectionPanel.querySelector('#sInnerCellItalic').onchange = (e) => { applyCellStyleToSelection(el, cellSel, { italic: !!e.target.checked }); Renderer.renderCanvas(); Renderer.syncJSON(); };
+            }
+            refs.selectionPanel.querySelector('#sInnerTableAddRow').onclick = () => {
+              resizeCellMatrix(el.content.innerTable, clampNum(el.content.innerTable.rows + 1, 1, 12), el.content.innerTable.cols);
+              Renderer.renderSelectionPanel();
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            refs.selectionPanel.querySelector('#sInnerTableDelRow').onclick = () => {
+              resizeCellMatrix(el.content.innerTable, clampNum(el.content.innerTable.rows - 1, 1, 12), el.content.innerTable.cols);
+              Renderer.renderSelectionPanel();
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            refs.selectionPanel.querySelector('#sInnerTableAddCol').onclick = () => {
+              resizeCellMatrix(el.content.innerTable, el.content.innerTable.rows, clampNum(el.content.innerTable.cols + 1, 1, 8));
+              Renderer.renderSelectionPanel();
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            refs.selectionPanel.querySelector('#sInnerTableDelCol').onclick = () => {
+              resizeCellMatrix(el.content.innerTable, el.content.innerTable.rows, clampNum(el.content.innerTable.cols - 1, 1, 8));
+              Renderer.renderSelectionPanel();
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+          }
+
+          if (el.type === 'table') {
+            ensureTableElement(el);
+            refs.selectionPanel.querySelector('#tblAddRow').onclick = () => TableOps.addRow(el.id);
+            refs.selectionPanel.querySelector('#tblDelRow').onclick = () => TableOps.removeRow(el.id);
+            refs.selectionPanel.querySelector('#tblAddCol').onclick = () => TableOps.addCol(el.id);
+            refs.selectionPanel.querySelector('#tblDelCol').onclick = () => TableOps.removeCol(el.id);
+            if (cellSel?.kind === 'table') {
+              bind('#sTblBg', 'input', v => applyCellStyleToSelection(el, cellSel, { bg: v }));
+              bind('#sTblText', 'input', v => applyCellStyleToSelection(el, cellSel, { color: v }));
+              bind('#sTblBgAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { bgAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sTblTextAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { textAlpha: clampFloat(Number(v), 0, 1) }));
+            } else {
+              bind('#sTblBg', 'input', v => el.style.bg = v);
+              bind('#sTblText', 'input', v => el.style.text = v);
+              bind('#sTblBgAlpha', 'input', v => el.style.bgAlpha = clampFloat(Number(v), 0, 1));
+              bind('#sTblTextAlpha', 'input', v => el.style.textAlpha = clampFloat(Number(v), 0, 1));
+            }
+            bind('#sTblBorder', 'input', v => el.style.border = v);
+            bind('#sTblBorderAlpha', 'input', v => el.style.borderAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sTblFontSize', 'input', v => el.style.fontSize = clampNum(v, 10, 36));
+            bind('#sTblFont', 'change', v => el.style.font = v);
+            bind('#sTblRadius', 'input', v => el.style.radius = clampNum(v, 0, 40));
+            refs.selectionPanel.querySelector('#sTblBold').onchange = (e) => { el.style.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sTblItalic').onchange = (e) => { el.style.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#tblMergeCellsBtn').onclick = () => {
+              TableOps.mergeCells(el.id, state.ui.tableSelection, 'table');
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            refs.selectionPanel.querySelector('#tblUnmergeCellsBtn').onclick = () => {
+              TableOps.unmergeAt(el.id, state.ui.tableSelection, 'table');
+              Renderer.renderCanvas();
+              Renderer.syncJSON();
+            };
+            if (cellSel?.kind === 'table') {
+              bind('#sTblCellBg', 'input', v => applyCellStyleToSelection(el, cellSel, { bg: v }));
+              bind('#sTblCellBgAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { bgAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sTblCellText', 'input', v => applyCellStyleToSelection(el, cellSel, { color: v }));
+              bind('#sTblCellTextAlpha', 'input', v => applyCellStyleToSelection(el, cellSel, { textAlpha: clampFloat(Number(v), 0, 1) }));
+              bind('#sTblCellFontSize', 'input', v => applyCellStyleToSelection(el, cellSel, { fontSize: clampNum(v, 10, 36) }));
+              bind('#sTblCellFont', 'change', v => applyCellStyleToSelection(el, cellSel, { font: v }));
+              refs.selectionPanel.querySelector('#sTblCellBold').onchange = (e) => { applyCellStyleToSelection(el, cellSel, { bold: !!e.target.checked }); Renderer.renderCanvas(); Renderer.syncJSON(); };
+              refs.selectionPanel.querySelector('#sTblCellItalic').onchange = (e) => { applyCellStyleToSelection(el, cellSel, { italic: !!e.target.checked }); Renderer.renderCanvas(); Renderer.syncJSON(); };
+            }
+          }
+
+          if (el.type === 'image') {
+            bind('#sImgFit', 'change', v => el.style.fit = v);
+            bind('#sImgOpacity', 'input', v => el.style.opacity = clampFloat(Number(v), 0.1, 1));
+          }
+
+          if (el.type === 'text') {
+            ensureTextElement(el);
+            bind('#sTxtValue', 'input', v => el.text.value = v);
+            bind('#sTxtSize', 'input', v => el.style.fontSize = clampNum(v, 10, 120));
+            bind('#sTxtFont', 'change', v => el.style.font = v);
+            bind('#sTxtColor', 'input', v => el.style.text = v);
+            bind('#sTxtAlpha', 'input', v => el.style.textAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sTxtBg', 'input', v => el.style.bg = v);
+            bind('#sTxtBgAlpha', 'input', v => el.style.bgAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sTxtAlign', 'change', v => el.style.align = v);
+            bind('#sTxtRadius', 'input', v => el.style.radius = clampNum(v, 8, 40));
+            bind('#sTxtBorderColor', 'input', v => el.style.borderColor = v);
+            bind('#sTxtBorderAlpha', 'input', v => el.style.borderAlpha = clampFloat(Number(v), 0, 1));
+            bind('#sTxtBorderWidth', 'input', v => el.style.borderWidth = clampNum(v, 0, 12));
+            bind('#sTxtBorderStyle', 'change', v => el.style.borderStyle = v);
+            refs.selectionPanel.querySelector('#sTxtShowBorder').onchange = (e) => { el.style.showBorder = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sTxtBold').onchange = (e) => { el.style.bold = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sTxtItalic').onchange = (e) => { el.style.italic = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+            refs.selectionPanel.querySelector('#sTxtUnderline').onchange = (e) => { el.style.underline = !!e.target.checked; Renderer.renderCanvas(); Renderer.syncJSON(); };
+          }
+
+          function bind(selector, evt, setter) {
+            const node = refs.selectionPanel.querySelector(selector);
+            if (!node) return;
+            node.addEventListener(evt, () => {
+              setter(node.value);
+              Renderer.renderCanvas();
+              Renderer.renderLayerPanel();
+              Renderer.syncJSON();
+            });
+          }
+        },
+
+        paintSelection() {
+          refs.canvas.querySelectorAll('.element').forEach(node => {
+            const id = node.dataset.id;
+            node.classList.toggle('selected', state.ui.selectedIds.includes(id));
+          });
+        },
+
+        applyZoom() {
+          refs.canvas.style.transform = `scale(${state.ui.zoom})`;
+        },
+
+        syncJSON() {
+          refs.jsonBox.value = State.toJSON();
+        },
+
+        clearGuides() {
+          refs.canvas.querySelectorAll('.guide, .distance-tag').forEach(x => x.remove());
+        },
+
+        drawGuide(type, pos, label) {
+          const g = document.createElement('div');
+          g.className = `guide ${type}`;
+          if (type === 'v') g.style.left = pos + 'px';
+          if (type === 'h') g.style.top = pos + 'px';
+          refs.canvas.appendChild(g);
+
+          if (label) {
+            const tag = document.createElement('div');
+            tag.className = 'distance-tag';
+            tag.textContent = label;
+            tag.style.left = (type === 'v' ? pos + 3 : 8) + 'px';
+            tag.style.top = (type === 'h' ? pos + 3 : 8) + 'px';
+            refs.canvas.appendChild(tag);
+          }
+        }
+      };
+
+      const Snap = {
+        getTargets(exceptId) {
+          const targets = [];
+          state.elements.forEach(el => {
+            if (el.id === exceptId) return;
+            targets.push({ x: el.x, y: el.y, type: 'start' });
+            targets.push({ x: el.x + el.w / 2, y: el.y + el.h / 2, type: 'center' });
+            targets.push({ x: el.x + el.w, y: el.y + el.h, type: 'end' });
+          });
+
+          targets.push({ x: 0, y: 0, type: 'canvas-start' });
+          targets.push({ x: state.canvas.width / 2, y: state.canvas.height / 2, type: 'canvas-center' });
+          targets.push({ x: state.canvas.width, y: state.canvas.height, type: 'canvas-end' });
+          return targets;
+        },
+
+        apply(x, y, w, h, movingId) {
+          let sx = x;
+          let sy = y;
+          let showV = null;
+          let showH = null;
+          const targets = this.getTargets(movingId);
+
+          const xCandidates = [x, x + w / 2, x + w];
+          const yCandidates = [y, y + h / 2, y + h];
+
+          for (const t of targets) {
+            for (const xc of xCandidates) {
+              if (Math.abs(xc - t.x) <= SNAP) {
+                sx += t.x - xc;
+                showV = Math.round(t.x);
+                break;
+              }
+            }
+            for (const yc of yCandidates) {
+              if (Math.abs(yc - t.y) <= SNAP) {
+                sy += t.y - yc;
+                showH = Math.round(t.y);
+                break;
+              }
+            }
+          }
+
+          return { x: sx, y: sy, showV, showH };
+        }
+      };
+
+      const TableOps = {
+        addRow(id) {
+          const t = State.getElement(id);
+          if (!t || t.type !== 'table') return;
+          t.table.rows += 1;
+          t.table.rowHeights.push(34);
+          const row = [];
+          for (let c = 0; c < t.table.cols; c++) row.push({ text: '' });
+          t.table.cells.push(row);
+          t.table.merges = [];
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        removeRow(id) {
+          const t = State.getElement(id);
+          if (!t || t.type !== 'table' || t.table.rows <= 1) return;
+          t.table.rows -= 1;
+          t.table.rowHeights.pop();
+          t.table.cells.pop();
+          t.table.merges = [];
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        addCol(id) {
+          const t = State.getElement(id);
+          if (!t || t.type !== 'table') return;
+          t.table.cols += 1;
+          t.table.colWidths.push(120);
+          t.table.cells.forEach(r => r.push({ text: '' }));
+          t.table.merges = [];
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        removeCol(id) {
+          const t = State.getElement(id);
+          if (!t || t.type !== 'table' || t.table.cols <= 1) return;
+          t.table.cols -= 1;
+          t.table.colWidths.pop();
+          t.table.cells.forEach(r => r.pop());
+          t.table.merges = [];
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        mergeCells(id, range, kind = 'table') {
+          if (kind === 'table') {
+            const t = State.getElement(id);
+            if (!t || t.type !== 'table' || !range || range.kind !== 'table' || range.id !== id) return;
+            const rect = normalizeRect(range.r1, range.c1, range.r2, range.c2);
+            if (rect.r1 === rect.r2 && rect.c1 === rect.c2) return;
+            t.table.merges = Array.isArray(t.table.merges) ? t.table.merges : [];
+            t.table.merges = t.table.merges.filter(m => !rectOverlap(rect, m));
+            t.table.merges.push(rect);
+          } else {
+            const c = State.getElement(id);
+            if (!c || c.type !== 'card' || !range || range.kind !== 'inner' || range.cardId !== id) return;
+            ensureCardInnerTable(c);
+            const rect = normalizeRect(range.r1, range.c1, range.r2, range.c2);
+            if (rect.r1 === rect.r2 && rect.c1 === rect.c2) return;
+            c.content.innerTable.merges = Array.isArray(c.content.innerTable.merges) ? c.content.innerTable.merges : [];
+            c.content.innerTable.merges = c.content.innerTable.merges.filter(m => !rectOverlap(rect, m));
+            c.content.innerTable.merges.push(rect);
+          }
+          Renderer.renderAll();
+          Interaction.bindMode();
+        },
+        unmergeAt(id, range, kind = 'table') {
+          if (!range) return;
+          if (kind === 'table') {
+            const t = State.getElement(id);
+            if (!t || t.type !== 'table' || range.kind !== 'table' || range.id !== id) return;
+            const merges = Array.isArray(t.table.merges) ? t.table.merges : [];
+            t.table.merges = merges.filter(m => !(range.r1 >= m.r1 && range.r1 <= m.r2 && range.c1 >= m.c1 && range.c1 <= m.c2));
+          } else {
+            const c = State.getElement(id);
+            if (!c || c.type !== 'card' || range.kind !== 'inner' || range.cardId !== id) return;
+            ensureCardInnerTable(c);
+            const merges = Array.isArray(c.content.innerTable.merges) ? c.content.innerTable.merges : [];
+            c.content.innerTable.merges = merges.filter(m => !(range.r1 >= m.r1 && range.r1 <= m.r2 && range.c1 >= m.c1 && range.c1 <= m.c2));
+          }
+          Renderer.renderAll();
+          Interaction.bindMode();
+        }
+      };
+
+      const Exporter = {
+        async exportPNG(scale = 2) {
+          const old = refs.canvas.style.boxShadow;
+          refs.canvas.style.boxShadow = 'none';
+          try {
+            const result = await html2canvas(refs.canvas, {
+              backgroundColor: null,
+              scale,
+              useCORS: true
+            });
+            const link = document.createElement('a');
+            link.href = result.toDataURL('image/png');
+            link.download = `canvas-${Date.now()}-${scale}x.png`;
+            link.click();
+          } catch (err) {
+            alert('导出失败: ' + err.message);
+          } finally {
+            refs.canvas.style.boxShadow = old;
+          }
+        },
+        async exportPDF(scale = 3) {
+          const old = refs.canvas.style.boxShadow;
+          refs.canvas.style.boxShadow = 'none';
+          try {
+            if (!window.jspdf?.jsPDF) {
+              alert('PDF 导出组件未加载，请刷新后重试。');
+              return;
+            }
+            const result = await html2canvas(refs.canvas, {
+              backgroundColor: '#ffffff',
+              scale,
+              useCORS: true
+            });
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+              orientation: result.width >= result.height ? 'landscape' : 'portrait',
+              unit: 'px',
+              format: [result.width, result.height],
+              compress: true
+            });
+            pdf.addImage(result, 'PNG', 0, 0, result.width, result.height);
+            pdf.save(`canvas-${Date.now()}.pdf`);
+          } catch (err) {
+            alert('PDF 导出失败: ' + err.message);
+          } finally {
+            refs.canvas.style.boxShadow = old;
+          }
+        }
+      };
+
+      const Interaction = {
+        sortable: null,
+        resizeSession: null,
+        innerTableSession: null,
+
+        bindGlobalButtons() {
+          document.getElementById('addCardBtn').onclick = () => {
+            const card = Schema.makeCard();
+            card.z = state.elements.length + 1;
+            state.elements.push(card);
+            Renderer.renderAll();
+            this.bindMode();
+          };
+
+          document.getElementById('addTableBtn').onclick = () => {
+            const table = Schema.makeTable();
+            table.z = state.elements.length + 1;
+            state.elements.push(table);
+            Renderer.renderAll();
+            this.bindMode();
+          };
+
+          document.getElementById('addTextBtn').onclick = () => {
+            const text = Schema.makeText();
+            text.z = state.elements.length + 1;
+            state.elements.push(text);
+            Renderer.renderAll();
+            this.bindMode();
+          };
+
+          document.getElementById('addImageBtn').onclick = () => {
+            refs.imageFileInput.click();
+          };
+
+          refs.imageFileInput.onchange = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const src = await fileToDataURL(file);
+              const image = Schema.makeImage(src);
+              image.z = state.elements.length + 1;
+              state.elements.push(image);
+              Renderer.renderAll();
+              this.bindMode();
+            } finally {
+              e.target.value = '';
+            }
+          };
+
+          document.getElementById('copyJsonBtn').onclick = async () => {
+            Renderer.syncJSON();
+            try {
+              await navigator.clipboard.writeText(refs.jsonBox.value);
+              alert(t('copied'));
+            } catch {
+              refs.jsonBox.select();
+              alert(t('copyFail'));
+            }
+          };
+
+          document.getElementById('export2xBtn').onclick = () => Exporter.exportPNG(2);
+          document.getElementById('export3xBtn').onclick = () => Exporter.exportPNG(3);
+          document.getElementById('exportPdfBtn').onclick = () => Exporter.exportPDF(3);
+
+          document.getElementById('modeGridBtn').onclick = () => State.setMode('grid');
+          document.getElementById('modeFreeBtn').onclick = () => State.setMode('free');
+
+          document.getElementById('alignLeftBtn').onclick = () => this.alignSelection('left');
+          document.getElementById('alignCenterBtn').onclick = () => this.alignSelection('centerX');
+          document.getElementById('alignTopBtn').onclick = () => this.alignSelection('top');
+          document.getElementById('distributeXBtn').onclick = () => this.distributeSelected('x');
+          const alignRightBtn = document.getElementById('alignRightBtn');
+          if (alignRightBtn) alignRightBtn.onclick = () => this.alignSelection('right');
+          const loadLocalFontsBtn = document.getElementById('loadLocalFontsBtn');
+          if (loadLocalFontsBtn) loadLocalFontsBtn.onclick = () => Fonts.loadLocalFonts();
+          const localeToggleBtn = document.getElementById('localeToggleBtn');
+          if (localeToggleBtn) {
+            localeToggleBtn.onclick = () => {
+              state.ui.locale = state.ui.locale === 'zh' ? 'en' : 'zh';
+              applyLocaleToBuiltinContent();
+              Fonts.updateStatus(isEN() ? 'Local fonts not loaded' : '未加载本机字体');
+              Renderer.renderAll();
+              this.bindMode();
+            };
+          }
+
+          refs.canvas.addEventListener('mousedown', (e) => {
+            if (!e.target.closest('td') && !e.target.closest('.card-inner-table-host')) {
+              state.ui.tableSelection = null;
+              state.ui.tableSelectionDraft = null;
+              this.paintTableCellSelection();
+              Renderer.renderSelectionPanel();
+            }
+            if (!e.target.closest('.element') && !e.target.closest('.card-inner-table-host')) State.clearSelect();
+          });
+
+          this.bindKeyboardDelete();
+        },
+
+        adjustLayerZ(id, delta) {
+          const el = State.getElement(id);
+          if (!el) return;
+          el.z = Math.max(1, el.z + delta);
+          state.elements
+            .slice()
+            .sort((a, b) => a.z - b.z)
+            .forEach((item, idx) => { item.z = idx + 1; });
+          Renderer.renderCanvas();
+          Renderer.renderLayerPanel();
+          Renderer.syncJSON();
+          this.bindMode();
+        },
+
+        bindMode() {
+          if (this.sortable) {
+            this.sortable.destroy();
+            this.sortable = null;
+          }
+
+          interact('.element').unset();
+
+          if (state.ui.mode === 'grid') {
+            const container = document.getElementById('gridContainer');
+            if (container) this.bindGridSort(container);
+            this.bindCanvasElements();
+          } else {
+            this.bindCanvasElements();
+            this.bindFreeMoveResize();
+          }
+        },
+
+        bindGridSort(container) {
+          if (!container) return;
+          this.sortable = Sortable.create(container, {
+            animation: 120,
+            ghostClass: 'dragging',
+            onEnd: (evt) => {
+              const cards = state.elements.filter(e => e.type === 'card');
+              const moved = cards.splice(evt.oldIndex, 1)[0];
+              cards.splice(evt.newIndex, 0, moved);
+              const others = state.elements.filter(e => e.type !== 'card');
+              state.elements = [...cards, ...others];
+              Renderer.renderLayerPanel();
+              Renderer.syncJSON();
+            }
+          });
+        },
+
+        bindCanvasElements() {
+          refs.canvas.querySelectorAll('.element').forEach(node => {
+            const id = node.dataset.id;
+            node.onmousedown = (e) => {
+              if (e.target.closest('.element-control')) return;
+              State.toggleSelect(id, e.shiftKey);
+            };
+
+            node.querySelectorAll('[data-role="delete"]').forEach(btn => {
+              btn.onpointerdown = (e) => {
+                e.stopPropagation();
+              };
+              btn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.deleteElement(id);
+              };
+            });
+
+            node.querySelectorAll('[data-role="resize"]').forEach(handle => {
+              handle.onpointerdown = (e) => this.startResize(handle.dataset.handle, id, e);
+            });
+          });
+
+          refs.canvas.querySelectorAll('.element[data-type="text"] .text-body').forEach(textNode => {
+            const host = textNode.closest('.element');
+            const id = host?.dataset.id;
+            if (!id) return;
+            textNode.ondblclick = (e) => {
+              e.stopPropagation();
+              textNode.setAttribute('contenteditable', 'true');
+              textNode.focus();
+              const range = document.createRange();
+              range.selectNodeContents(textNode);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            };
+            textNode.onblur = () => {
+              textNode.setAttribute('contenteditable', 'false');
+              const el = State.getElement(id);
+              if (!el || el.type !== 'text') return;
+              ensureTextElement(el);
+              el.text.value = textNode.textContent || '';
+              Renderer.syncJSON();
+            };
+            textNode.onkeydown = (e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                textNode.blur();
+              }
+              e.stopPropagation();
+            };
+            textNode.onpointerdown = (e) => e.stopPropagation();
+          });
+
+          refs.canvas.querySelectorAll('.card-inner-table-host').forEach(host => {
+            const cardId = host.dataset.cardId;
+            host.onpointerdown = (e) => {
+              if (e.target.closest('[data-role="inner-table-resize"]')) return;
+              if (e.target.tagName === 'TD') return;
+              this.startInnerTableDrag(cardId, e);
+            };
+            host.querySelectorAll('[data-role="inner-table-resize"]').forEach(h => {
+              h.onpointerdown = (e) => this.startInnerTableResize(cardId, e);
+            });
+          });
+
+          const cellNodes = refs.canvas.querySelectorAll('.editor-table td, .card-inner-table td');
+          cellNodes.forEach(td => {
+            td.onmousedown = (e) => e.stopPropagation();
+            td.onpointerdown = (e) => this.startTableCellSelection(td, e);
+            td.onpointerenter = () => this.extendTableCellSelection(td);
+            td.ondblclick = () => {
+              td.setAttribute('contenteditable', 'true');
+              td.focus();
+              const range = document.createRange();
+              range.selectNodeContents(td);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            };
+            td.onblur = () => {
+              td.setAttribute('contenteditable', 'false');
+              this.syncInnerTableCell(td);
+            };
+            td.onkeydown = (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                td.blur();
+              }
+            };
+          });
+          document.addEventListener('pointerup', this.finishTableCellSelection, { once: true });
+        },
+
+        startTableCellSelection(td, e) {
+          const tableId = td.dataset.tableId;
+          const cardId = td.dataset.cardId;
+          const kind = tableId ? 'table' : 'inner';
+          const ownerId = tableId || cardId;
+          if (!ownerId) return;
+          State.toggleSelect(ownerId, false);
+          const r = Number(td.dataset.r);
+          const c = Number(td.dataset.c);
+          state.ui.tableSelectionDraft = { kind, id: tableId || null, cardId: cardId || null, r1: r, c1: c, r2: r, c2: c };
+          state.ui.tableSelection = { ...state.ui.tableSelectionDraft };
+          Renderer.renderSelectionPanel();
+          this.paintTableCellSelection();
+          e.stopPropagation();
+        },
+
+        extendTableCellSelection(td) {
+          const draft = state.ui.tableSelectionDraft;
+          if (!draft) return;
+          const kind = td.dataset.tableId ? 'table' : 'inner';
+          const ownerId = td.dataset.tableId || td.dataset.cardId;
+          if ((kind === 'table' && draft.id !== ownerId) || (kind === 'inner' && draft.cardId !== ownerId)) return;
+          draft.r2 = Number(td.dataset.r);
+          draft.c2 = Number(td.dataset.c);
+          state.ui.tableSelection = { ...draft };
+          this.paintTableCellSelection();
+        },
+
+        finishTableCellSelection: () => {
+          state.ui.tableSelectionDraft = null;
+        },
+
+        paintTableCellSelection() {
+          refs.canvas.querySelectorAll('.editor-table td, .card-inner-table td').forEach(td => td.classList.remove('cell-selected'));
+          const s = state.ui.tableSelection;
+          if (!s) return;
+          const rect = normalizeRect(s.r1, s.c1, s.r2, s.c2);
+          const selector = s.kind === 'table' ? `.editor-table td[data-table-id="${s.id}"]` : `.card-inner-table td[data-card-id="${s.cardId}"]`;
+          refs.canvas.querySelectorAll(selector).forEach(td => {
+            const r = Number(td.dataset.r), c = Number(td.dataset.c);
+            if (r >= rect.r1 && r <= rect.r2 && c >= rect.c1 && c <= rect.c2) td.classList.add('cell-selected');
+          });
+        },
+
+        syncInnerTableCell(td) {
+          const tableId = td.dataset.tableId;
+          if (tableId) {
+            const table = State.getElement(tableId);
+            if (!table || table.type !== 'table') return;
+            const r = Number(td.dataset.r);
+            const c = Number(td.dataset.c);
+            table.table.cells[r][c].text = td.textContent || '';
+            Renderer.syncJSON();
+            return;
+          }
+          const cardId = td.dataset.cardId;
+          const r = Number(td.dataset.r);
+          const c = Number(td.dataset.c);
+          const card = State.getElement(cardId);
+          if (!card || card.type !== 'card') return;
+          ensureCardInnerTable(card);
+          card.content.innerTable.cells[r][c].text = td.textContent || '';
+          Renderer.syncJSON();
+        },
+
+        bindFreeMoveResize() {
+          interact('.element')
+            .draggable({
+              ignoreFrom: '.element-control, td, .card-inner-table-host',
+              listeners: {
+                move: (event) => {
+                  const id = event.target.dataset.id;
+                  const el = State.getElement(id);
+                  if (!el) return;
+
+                  const nx = el.x + event.dx;
+                  const ny = el.y + event.dy;
+                  const snap = Snap.apply(nx, ny, el.w, el.h, id);
+
+                  el.x = clampNum(snap.x, 0, state.canvas.width - el.w);
+                  el.y = clampNum(snap.y, 0, state.canvas.height - el.h);
+
+                  Renderer.clearGuides();
+                  if (snap.showV !== null) Renderer.drawGuide('v', snap.showV, `${snap.showV}px`);
+                  if (snap.showH !== null) Renderer.drawGuide('h', snap.showH, `${snap.showH}px`);
+
+                  event.target.style.left = el.x + 'px';
+                  event.target.style.top = el.y + 'px';
+                  Renderer.renderSelectionPanel();
+                },
+                end: () => {
+                  Renderer.clearGuides();
+                  Renderer.syncJSON();
+                }
+              }
+            });
+        },
+
+        alignSelection(type, multiReference = 'bbox') {
+          if (state.ui.mode !== 'free') State.setMode('free');
+          const list = State.getSelected();
+          if (!list.length) return;
+
+          let ref;
+          if (list.length === 1 || multiReference === 'canvas') {
+            ref = {
+              left: 0,
+              top: 0,
+              right: state.canvas.width,
+              bottom: state.canvas.height,
+              centerX: state.canvas.width / 2,
+              centerY: state.canvas.height / 2
+            };
+          } else {
+            const left = Math.min(...list.map(e => e.x));
+            const top = Math.min(...list.map(e => e.y));
+            const right = Math.max(...list.map(e => e.x + e.w));
+            const bottom = Math.max(...list.map(e => e.y + e.h));
+            ref = {
+              left,
+              top,
+              right,
+              bottom,
+              centerX: (left + right) / 2,
+              centerY: (top + bottom) / 2
+            };
+          }
+
+          list.forEach(el => {
+            if (type === 'left') el.x = ref.left;
+            if (type === 'centerX') el.x = ref.centerX - el.w / 2;
+            if (type === 'right') el.x = ref.right - el.w;
+            if (type === 'top') el.y = ref.top;
+            if (type === 'centerY') el.y = ref.centerY - el.h / 2;
+            if (type === 'bottom') el.y = ref.bottom - el.h;
+
+            el.x = clampNum(el.x, 0, state.canvas.width - el.w);
+            el.y = clampNum(el.y, 0, state.canvas.height - el.h);
+          });
+
+          Renderer.renderCanvas();
+          Renderer.renderSelectionPanel();
+          Renderer.syncJSON();
+          this.bindMode();
+        },
+
+        alignSelected(type) {
+          this.alignSelection(type);
+        },
+
+        deleteElement(id) {
+          state.elements = state.elements.filter(el => el.id !== id);
+          state.ui.selectedIds = [];
+          Renderer.renderAll();
+          this.bindMode();
+        },
+
+        bindKeyboardDelete() {
+          document.addEventListener('keydown', (e) => {
+            if (!(e.key === 'Delete' || e.key === 'Backspace')) return;
+            const active = document.activeElement;
+            if (!active) return;
+            const tag = active.tagName;
+            const isTypingNode =
+              active.isContentEditable ||
+              tag === 'INPUT' ||
+              tag === 'TEXTAREA' ||
+              tag === 'SELECT';
+            if (isTypingNode) return;
+            if (!state.ui.selectedIds.length) return;
+            e.preventDefault();
+            const ids = [...state.ui.selectedIds];
+            ids.forEach(id => {
+              state.elements = state.elements.filter(el => el.id !== id);
+            });
+            state.ui.selectedIds = [];
+            Renderer.renderAll();
+            this.bindMode();
+          });
+        },
+
+        startResize(handle, id, e) {
+          if (state.ui.mode !== 'free') return;
+          const el = State.getElement(id);
+          if (!el) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this.resizeSession = {
+            pointerId: e.pointerId,
+            handleEl: e.currentTarget,
+            handle,
+            id,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            origin: {
+              left: el.x,
+              top: el.y,
+              right: el.x + el.w,
+              bottom: el.y + el.h
+            },
+            minW: el.type === 'table' ? 180 : (el.type === 'text' ? 120 : 120),
+            minH: el.type === 'table' ? 120 : (el.type === 'text' ? 44 : 100)
+          };
+          document.addEventListener('pointermove', this.onPointerMove);
+          document.addEventListener('pointerup', this.onPointerUp);
+        },
+
+        onPointerMove: (e) => {
+          const session = Interaction.resizeSession;
+          if (!session || e.pointerId !== session.pointerId) return;
+          const el = State.getElement(session.id);
+          if (!el) return;
+
+          const dx = e.clientX - session.startClientX;
+          const dy = e.clientY - session.startClientY;
+          let left = session.origin.left;
+          let top = session.origin.top;
+          let right = session.origin.right;
+          let bottom = session.origin.bottom;
+
+          if (session.handle.includes('w')) left = session.origin.left + dx;
+          if (session.handle.includes('e')) right = session.origin.right + dx;
+          if (session.handle.includes('n')) top = session.origin.top + dy;
+          if (session.handle.includes('s')) bottom = session.origin.bottom + dy;
+
+          if (right - left < session.minW) {
+            if (session.handle.includes('w')) left = right - session.minW;
+            else right = left + session.minW;
+          }
+          if (bottom - top < session.minH) {
+            if (session.handle.includes('n')) top = bottom - session.minH;
+            else bottom = top + session.minH;
+          }
+
+          if (left < 0) {
+            if (session.handle.includes('w')) left = 0;
+            else right = Math.max(right, session.minW);
+          }
+          if (top < 0) {
+            if (session.handle.includes('n')) top = 0;
+            else bottom = Math.max(bottom, session.minH);
+          }
+          if (right > state.canvas.width) {
+            if (session.handle.includes('e')) right = state.canvas.width;
+            else left = state.canvas.width - (right - left);
+          }
+          if (bottom > state.canvas.height) {
+            if (session.handle.includes('s')) bottom = state.canvas.height;
+            else top = state.canvas.height - (bottom - top);
+          }
+
+          if (right - left < session.minW) right = left + session.minW;
+          if (bottom - top < session.minH) bottom = top + session.minH;
+
+          el.x = clampNum(left, 0, state.canvas.width - session.minW);
+          el.y = clampNum(top, 0, state.canvas.height - session.minH);
+          el.w = clampNum(right - left, session.minW, state.canvas.width - el.x);
+          el.h = clampNum(bottom - top, session.minH, state.canvas.height - el.y);
+
+          const node = refs.canvas.querySelector(`.element[data-id="${el.id}"]`);
+          if (node) {
+            node.style.left = el.x + 'px';
+            node.style.top = el.y + 'px';
+            node.style.width = el.w + 'px';
+            node.style.height = el.h + 'px';
+          }
+          Renderer.renderSelectionPanel();
+        },
+
+        onPointerUp: (e) => {
+          const session = Interaction.resizeSession;
+          if (!session || e.pointerId !== session.pointerId) return;
+          if (session.handleEl?.hasPointerCapture?.(e.pointerId)) {
+            session.handleEl.releasePointerCapture(e.pointerId);
+          }
+          Interaction.resizeSession = null;
+          document.removeEventListener('pointermove', Interaction.onPointerMove);
+          document.removeEventListener('pointerup', Interaction.onPointerUp);
+          Renderer.syncJSON();
+        },
+
+        startInnerTableDrag(cardId, e) {
+          if (state.ui.mode !== 'free') return;
+          const card = State.getElement(cardId);
+          if (!card || card.type !== 'card') return;
+          ensureCardInnerTable(card);
+          const t = card.content.innerTable;
+          if (!t.enabled) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this.innerTableSession = {
+            kind: 'drag',
+            pointerId: e.pointerId,
+            host: e.currentTarget,
+            cardId,
+            startX: e.clientX,
+            startY: e.clientY,
+            x: t.x,
+            y: t.y
+          };
+          document.addEventListener('pointermove', this.onInnerTablePointerMove);
+          document.addEventListener('pointerup', this.onInnerTablePointerUp);
+        },
+
+        startInnerTableResize(cardId, e) {
+          if (state.ui.mode !== 'free') return;
+          const card = State.getElement(cardId);
+          if (!card || card.type !== 'card') return;
+          ensureCardInnerTable(card);
+          const t = card.content.innerTable;
+          if (!t.enabled) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          this.innerTableSession = {
+            kind: 'resize',
+            pointerId: e.pointerId,
+            host: e.currentTarget,
+            cardId,
+            startX: e.clientX,
+            startY: e.clientY,
+            w: t.w,
+            h: t.h
+          };
+          document.addEventListener('pointermove', this.onInnerTablePointerMove);
+          document.addEventListener('pointerup', this.onInnerTablePointerUp);
+        },
+
+        onInnerTablePointerMove: (e) => {
+          const s = Interaction.innerTableSession;
+          if (!s || e.pointerId !== s.pointerId) return;
+          const card = State.getElement(s.cardId);
+          if (!card || card.type !== 'card') return;
+          ensureCardInnerTable(card);
+          const t = card.content.innerTable;
+          const dx = e.clientX - s.startX;
+          const dy = e.clientY - s.startY;
+          if (s.kind === 'drag') {
+            t.x = clampNum(s.x + dx, 0, card.w - 40);
+            t.y = clampNum(s.y + dy, 30, card.h - 30);
+          } else {
+            t.w = clampNum(s.w + dx, 80, card.w - t.x - 6);
+            t.h = clampNum(s.h + dy, 56, card.h - t.y - 6);
+          }
+          const host = refs.canvas.querySelector(`.card-inner-table-host[data-card-id="${card.id}"]`);
+          if (host) {
+            host.style.left = t.x + 'px';
+            host.style.top = t.y + 'px';
+            host.style.width = t.w + 'px';
+            host.style.height = t.h + 'px';
+          }
+          Renderer.syncJSON();
+        },
+
+        onInnerTablePointerUp: (e) => {
+          const s = Interaction.innerTableSession;
+          if (!s || e.pointerId !== s.pointerId) return;
+          if (s.host?.hasPointerCapture?.(e.pointerId)) s.host.releasePointerCapture(e.pointerId);
+          Interaction.innerTableSession = null;
+          document.removeEventListener('pointermove', Interaction.onInnerTablePointerMove);
+          document.removeEventListener('pointerup', Interaction.onInnerTablePointerUp);
+          Renderer.renderSelectionPanel();
+          Renderer.syncJSON();
+        },
+
+        distributeSelected(axis = 'x') {
+          if (state.ui.mode !== 'free') State.setMode('free');
+          const list = State.getSelected();
+          if (list.length < 3) return;
+
+          const sorted = list.slice().sort((a, b) => axis === 'x' ? a.x - b.x : a.y - b.y);
+          const first = sorted[0];
+          const last = sorted[sorted.length - 1];
+
+          if (axis === 'x') {
+            const totalW = sorted.reduce((sum, e) => sum + e.w, 0);
+            const gap = (last.x + last.w - first.x - totalW) / (sorted.length - 1);
+            let cursor = first.x;
+            sorted.forEach(e => {
+              e.x = cursor;
+              cursor += e.w + gap;
+            });
+          }
+
+          if (axis === 'y') {
+            const totalH = sorted.reduce((sum, e) => sum + e.h, 0);
+            const gap = (last.y + last.h - first.y - totalH) / (sorted.length - 1);
+            let cursor = first.y;
+            sorted.forEach(e => {
+              e.y = cursor;
+              cursor += e.h + gap;
+            });
+          }
+
+          Renderer.renderCanvas();
+          Renderer.renderSelectionPanel();
+          Renderer.syncJSON();
+          this.bindMode();
+        }
+      };
+
+      function clampNum(v, min, max) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return min;
+        return Math.max(min, Math.min(max, n));
+      }
+
+      function clampFloat(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function escapeHtml(v = '') {
+        return String(v)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function escapeAttr(v = '') {
+        return escapeHtml(v).replace(/`/g, '&#96;');
+      }
+
+      function ensureCardInnerTable(card) {
+        if (!card?.content) return;
+        if (!card.content.innerTable) {
+          card.content.innerTable = {
+            enabled: false,
+            rows: 2,
+            cols: 2,
+            x: 12,
+            y: 76,
+            w: 160,
+            h: 96,
+            align: 'left',
+            borderColor: '#cfd9e8',
+            borderWidth: 1,
+            bg: '#ffffff',
+            text: '#1f2b3d',
+            bgAlpha: 1,
+            textAlpha: 1,
+            borderAlpha: 1,
+            fontSize: 12,
+            bold: false,
+            italic: false,
+            font: '系统默认',
+            radius: 18,
+            cells: [
+              [{ text: isEN() ? 'Field' : '字段' }, { text: isEN() ? 'Content' : '内容' }],
+              [{ text: isEN() ? 'Example' : '示例' }, { text: isEN() ? 'Editable' : '可编辑' }]
+            ],
+            merges: []
+          };
+        }
+        card.content.innerTable.rows = clampNum(card.content.innerTable.rows ?? 2, 1, 12);
+        card.content.innerTable.cols = clampNum(card.content.innerTable.cols ?? 2, 1, 8);
+        card.content.innerTable.x = clampNum(card.content.innerTable.x ?? 12, 0, 4000);
+        card.content.innerTable.y = clampNum(card.content.innerTable.y ?? 76, 0, 4000);
+        card.content.innerTable.w = clampNum(card.content.innerTable.w ?? 160, 80, 4000);
+        card.content.innerTable.h = clampNum(card.content.innerTable.h ?? 96, 56, 4000);
+        card.content.innerTable.bgAlpha = clampFloat(Number(card.content.innerTable.bgAlpha ?? 1), 0, 1);
+        card.content.innerTable.textAlpha = clampFloat(Number(card.content.innerTable.textAlpha ?? 1), 0, 1);
+        card.content.innerTable.borderAlpha = clampFloat(Number(card.content.innerTable.borderAlpha ?? 1), 0, 1);
+        card.content.innerTable.fontSize = clampNum(card.content.innerTable.fontSize ?? 12, 10, 36);
+        card.content.innerTable.bold = !!card.content.innerTable.bold;
+        card.content.innerTable.italic = !!card.content.innerTable.italic;
+        card.content.innerTable.font = card.content.innerTable.font || '系统默认';
+        card.content.innerTable.radius = clampNum(card.content.innerTable.radius ?? (card.style?.radius ?? 18), 0, 40);
+        card.content.innerTable.merges = Array.isArray(card.content.innerTable.merges) ? card.content.innerTable.merges : [];
+        card.content.innerTable.cells = ensureCellMatrix(card.content.innerTable.cells, card.content.innerTable.rows, card.content.innerTable.cols);
+      }
+
+      function ensureTableElement(el) {
+        if (!el || el.type !== 'table') return;
+        el.style = el.style || {};
+        el.style.fontSize = clampNum(el.style.fontSize ?? 13, 10, 36);
+        el.style.bold = !!el.style.bold;
+        el.style.italic = !!el.style.italic;
+        el.style.font = el.style.font || '系统默认';
+        el.style.bgAlpha = clampFloat(Number(el.style.bgAlpha ?? 1), 0, 1);
+        el.style.textAlpha = clampFloat(Number(el.style.textAlpha ?? 1), 0, 1);
+        el.style.borderAlpha = clampFloat(Number(el.style.borderAlpha ?? 1), 0, 1);
+        el.style.bg = el.style.bg || '#ffffff';
+        el.style.text = el.style.text || '#1f2b3d';
+        el.style.border = el.style.border || '#cfd9e8';
+        el.style.radius = clampNum(el.style.radius ?? 18, 0, 40);
+        el.table = el.table || { rows: 2, cols: 2, cells: [[{ text: '' }, { text: '' }], [{ text: '' }, { text: '' }]], merges: [] };
+        el.table.rows = clampNum(el.table.rows ?? 2, 1, 20);
+        el.table.cols = clampNum(el.table.cols ?? 2, 1, 12);
+        el.table.merges = Array.isArray(el.table.merges) ? el.table.merges : [];
+        el.table.cells = ensureCellMatrix(el.table.cells, el.table.rows, el.table.cols);
+      }
+
+      function ensureTextElement(el) {
+        if (!el || el.type !== 'text') return;
+        el.style = el.style || {};
+        el.text = el.text || {};
+        el.text.value = String(el.text.value ?? '文本');
+        el.style.text = el.style.text || '#111827';
+        el.style.textAlpha = clampFloat(Number(el.style.textAlpha ?? 1), 0, 1);
+        el.style.fontSize = clampNum(el.style.fontSize ?? 24, 10, 120);
+        el.style.bold = !!el.style.bold;
+        el.style.italic = !!el.style.italic;
+        el.style.underline = !!el.style.underline;
+        el.style.align = ['left', 'center', 'right'].includes(el.style.align) ? el.style.align : 'left';
+        el.style.font = el.style.font || '系统默认';
+        el.style.bg = el.style.bg || '#ffffff';
+        el.style.bgAlpha = clampFloat(Number(el.style.bgAlpha ?? 0), 0, 1);
+        el.style.showBorder = el.style.showBorder !== false;
+        el.style.borderColor = el.style.borderColor || '#94a3b8';
+        el.style.borderAlpha = clampFloat(Number(el.style.borderAlpha ?? 0.38), 0, 1);
+        el.style.borderWidth = clampNum(el.style.borderWidth ?? 1, 0, 12);
+        el.style.borderStyle = ['solid', 'dashed', 'dotted', 'double'].includes(el.style.borderStyle) ? el.style.borderStyle : 'dashed';
+        el.style.radius = clampNum(el.style.radius ?? 16, 8, 40);
+      }
+
+      function ensureCellMatrix(cells, rows, cols) {
+        const matrix = Array.isArray(cells) ? cells.map(row => Array.isArray(row) ? row : []) : [];
+        const out = [];
+        for (let r = 0; r < rows; r++) {
+          const row = [];
+          for (let c = 0; c < cols; c++) {
+            row.push({
+              text: String(matrix[r]?.[c]?.text ?? ''),
+              style: normalizeCellStyle(matrix[r]?.[c]?.style || {})
+            });
+          }
+          out.push(row);
+        }
+        return out;
+      }
+
+      function normalizeRect(r1, c1, r2, c2) {
+        return {
+          r1: Math.min(r1, r2),
+          c1: Math.min(c1, c2),
+          r2: Math.max(r1, r2),
+          c2: Math.max(c1, c2)
+        };
+      }
+
+      function rectOverlap(a, b) {
+        return !(a.r2 < b.r1 || a.r1 > b.r2 || a.c2 < b.c1 || a.c1 > b.c2);
+      }
+
+      function buildMergeMaps(rows, cols, merges = []) {
+        const skip = new Set();
+        const master = new Map();
+        (Array.isArray(merges) ? merges : []).forEach(m => {
+          const r = normalizeRect(m.r1, m.c1, m.r2, m.c2);
+          if (r.r1 < 0 || r.c1 < 0 || r.r2 >= rows || r.c2 >= cols) return;
+          master.set(`${r.r1}-${r.c1}`, r);
+          for (let rr = r.r1; rr <= r.r2; rr++) {
+            for (let cc = r.c1; cc <= r.c2; cc++) {
+              if (rr === r.r1 && cc === r.c1) continue;
+              skip.add(`${rr}-${cc}`);
+            }
+          }
+        });
+        return { master, skip };
+      }
+
+      function renderTableBody({ rows, cols, cells, merges, dataset }) {
+        const matrix = ensureCellMatrix(cells, rows, cols);
+        const { master, skip } = buildMergeMaps(rows, cols, merges);
+        const trs = [];
+        for (let r = 0; r < rows; r++) {
+          const tds = [];
+          for (let c = 0; c < cols; c++) {
+            const key = `${r}-${c}`;
+            if (skip.has(key)) continue;
+            const cell = matrix[r][c] || { text: '' };
+            const merge = master.get(key);
+            const rowspan = merge ? merge.r2 - merge.r1 + 1 : 1;
+            const colspan = merge ? merge.c2 - merge.c1 + 1 : 1;
+            const inline = cellStyleToInline(cell.style || {});
+            tds.push(`<td ${dataset} data-r="${r}" data-c="${c}" rowspan="${rowspan}" colspan="${colspan}" contenteditable="false" style="${inline}">${escapeHtml(cell.text || '')}</td>`);
+          }
+          trs.push(`<tr>${tds.join('')}</tr>`);
+        }
+        return trs.join('');
+      }
+
+      function resizeCellMatrix(table, rows, cols) {
+        table.rows = rows;
+        table.cols = cols;
+        table.cells = ensureCellMatrix(table.cells, rows, cols);
+        table.merges = [];
+      }
+
+      function serializeCellMatrix(cells) {
+        if (!Array.isArray(cells)) return '';
+        return cells.map(row => (Array.isArray(row) ? row.map(cell => String(cell?.text ?? '').replace(/\|/g, '/')).join(' | ') : '')).join('\n');
+      }
+
+      function parseCellMatrix(raw, rows, cols, existing) {
+        const lines = String(raw || '').split('\n');
+        const out = [];
+        for (let r = 0; r < rows; r++) {
+          const colsRaw = String(lines[r] ?? '').split('|');
+          const row = [];
+          for (let c = 0; c < cols; c++) {
+            row.push({
+              text: String(colsRaw[c] ?? '').trim(),
+              style: normalizeCellStyle(existing?.[r]?.[c]?.style || {})
+            });
+          }
+          out.push(row);
+        }
+        return out;
+      }
+
+      function normalizeCellStyle(style = {}) {
+        return {
+          bg: style.bg || '',
+          bgAlpha: clampFloat(Number(style.bgAlpha ?? 1), 0, 1),
+          color: style.color || '',
+          textAlpha: clampFloat(Number(style.textAlpha ?? 1), 0, 1),
+          fontSize: Number.isFinite(Number(style.fontSize)) ? clampNum(Number(style.fontSize), 10, 36) : null,
+          font: style.font || '',
+          bold: !!style.bold,
+          italic: !!style.italic
+        };
+      }
+
+      function cellStyleToInline(style = {}) {
+        const s = normalizeCellStyle(style);
+        const parts = [];
+        if (s.bg) parts.push(`background:${toRgba(s.bg, s.bgAlpha)}`);
+        if (s.color) parts.push(`color:${toRgba(s.color, s.textAlpha)}`);
+        if (s.fontSize) parts.push(`font-size:${s.fontSize}px`);
+        if (s.font) parts.push(`font-family:${fontStack(s.font)}`);
+        if (s.bold) parts.push('font-weight:700');
+        if (s.italic) parts.push('font-style:italic');
+        return parts.join(';');
+      }
+
+      function fontStack(fontName = '') {
+        const base = `-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif`;
+        const name = sanitizeFontName(fontName);
+        if (!name || name === '系统默认') return base;
+        return `'${name}',${base}`;
+      }
+
+      function sanitizeFontName(name = '') {
+        return String(name || '')
+          .replace(/[<>;]/g, '')
+          .replace(/["']/g, '')
+          .trim();
+      }
+
+      function getCellSelectionForElement(el, selection) {
+        if (!selection || !el) return null;
+        if (el.type === 'table' && selection.kind === 'table' && selection.id === el.id) {
+          return { kind: 'table', rect: normalizeRect(selection.r1, selection.c1, selection.r2, selection.c2) };
+        }
+        if (el.type === 'card' && selection.kind === 'inner' && selection.cardId === el.id) {
+          return { kind: 'inner', rect: normalizeRect(selection.r1, selection.c1, selection.r2, selection.c2) };
+        }
+        return null;
+      }
+
+      function getCellStyleForRange(tableObj, rect) {
+        if (!tableObj || !rect) return normalizeCellStyle({});
+        const r = rect.r1, c = rect.c1;
+        return normalizeCellStyle(tableObj.cells?.[r]?.[c]?.style || {});
+      }
+
+      function applyCellStyleToSelection(el, selectionCtx, patch) {
+        if (!selectionCtx) return;
+        const tableObj = selectionCtx.kind === 'table' ? el.table : el.content?.innerTable;
+        if (!tableObj) return;
+        const rect = selectionCtx.rect;
+        tableObj.cells = ensureCellMatrix(tableObj.cells, tableObj.rows, tableObj.cols);
+        for (let r = rect.r1; r <= rect.r2; r++) {
+          for (let c = rect.c1; c <= rect.c2; c++) {
+            const cur = tableObj.cells[r][c] || { text: '', style: {} };
+            cur.style = { ...normalizeCellStyle(cur.style), ...patch };
+            tableObj.cells[r][c] = cur;
+          }
+        }
+      }
+
+      function translateSelectionHtmlToEn(html) {
+        const map = [
+          ['显示底部注释条', 'Show Bottom Note'],
+          ['要点（每行一条）', 'Points (one row per item)'],
+          ['卡片配色预设', 'Card Palette Preset'],
+          ['表格单元格文本（每行一行，列用 | 分隔）', 'Table Cells (one row per line, split columns with |)'],
+          ['在卡片内表格中拖选单元格后，可设置单元格样式', 'Drag-select inner-table cells to style selected cells'],
+          ['在表格中拖选单元格后，可设置单元格样式', 'Drag-select table cells to style selected cells'],
+          ['标签颜色', 'Tag Color'],
+          ['标题颜色', 'Title Color'],
+          ['正文字体', 'Body Font'],
+          ['注释字体', 'Note Font'],
+          ['标题字体', 'Title Font'],
+          ['标题字号', 'Title Size'],
+          ['正文字号', 'Body Size'],
+          ['注释字号', 'Note Size'],
+          ['标题加粗', 'Bold Title'],
+          ['标题斜体', 'Italic Title'],
+          ['正文加粗', 'Bold Body'],
+          ['正文斜体', 'Italic Body'],
+          ['注释加粗', 'Bold Note'],
+          ['注释斜体', 'Italic Note'],
+          ['左对齐', 'Align Left'],
+          ['右对齐', 'Align Right'],
+          ['居中', 'Center'],
+          ['名称', 'Name'], ['宽', 'W'], ['高', 'H'], ['标题', 'Title'], ['标签', 'Tag'],
+          ['欢迎', 'Welcome'], ['操作提示', 'Tips'],
+          ['底部注释', 'Bottom Note'],
+          ['卡片配色预设', 'Card Palette Preset'], ['应用到此卡片', 'Apply to This Card'],
+          ['卡片主色', 'Primary'], ['卡片辅色', 'Secondary'], ['主色透明度', 'Primary Opacity'], ['辅色透明度', 'Secondary Opacity'],
+          ['边框颜色', 'Border Color'], ['边框粗细(px)', 'Border Width (px)'], ['边框透明度', 'Border Opacity'], ['文字透明度', 'Text Opacity'],
+          ['正文颜色', 'Body Color'], ['注释颜色', 'Note Color'],
+          ['卡片内嵌表格', 'Enable Inner Table'], ['表格行', 'Rows'], ['表格列', 'Cols'], ['表格边框色', 'Table Border'], ['表格底色', 'Table BG'],
+          ['文字色', 'Text Color'], ['底色透明度', 'BG Opacity'], ['文字透明度', 'Text Opacity'], ['字号', 'Font Size'], ['圆角(px)', 'Radius (px)'],
+          ['表格文字加粗', 'Bold Table Text'], ['表格文字斜体', 'Italic Table Text'], ['对齐', 'Align'],
+          ['合并选中单元格', 'Merge Selected Cells'], ['取消合并（选中起点）', 'Unmerge (selected start cell)'],
+          ['单元格底色', 'Cell BG'], ['单元格文字色', 'Cell Text'], ['单元格字号', 'Cell Font Size'], ['单元格字体', 'Cell Font'],
+          ['单元格文字加粗', 'Bold Cell Text'], ['单元格文字斜体', 'Italic Cell Text'],
+          ['+行', '+Row'], ['-行', '-Row'], ['+列', '+Col'], ['-列', '-Col'],
+          ['表格底色', 'Table BG'], ['边框色', 'Border Color'], ['边框透明度', 'Border Opacity'], ['文字加粗', 'Bold'], ['文字斜体', 'Italic'],
+          ['图片适配', 'Image Fit'], ['透明度', 'Opacity'], ['文本内容', 'Text'], ['文字颜色', 'Text Color'], ['背景色', 'Background'],
+          ['字体', 'Font'], ['背景', 'Background'], ['欢迎标题', 'Welcome Title'],
+          ['显示边框', 'Show Border'], ['边框样式', 'Border Style'], ['实线', 'Solid'], ['虚线', 'Dashed'], ['点线', 'Dotted'], ['双线', 'Double'],
+          ['背景透明度', 'Background Opacity'], ['加粗', 'Bold'], ['斜体', 'Italic'], ['下划线', 'Underline'],
+          ['未选中元素', 'No element selected']
+        ];
+        let out = html;
+        map.forEach(([zh, en]) => {
+          out = out.split(zh).join(en);
+        });
+        return out;
+      }
+
+      function fileToDataURL(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(reader.error || new Error('读取文件失败'));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function applyLocaleToBuiltinContent() {
+        const lang = state.ui.locale === 'en' ? 'en' : 'zh';
+        state.elements.forEach(el => {
+          const i18n = el.i18n?.[lang];
+          if (!i18n) return;
+          if (i18n.name) el.name = i18n.name;
+          if (el.type === 'text' && i18n.text && el.text) {
+            el.text.value = i18n.text;
+          }
+          if (el.type === 'card' && el.content) {
+            if (i18n.title) el.content.title = i18n.title;
+            if (i18n.badge) el.content.badge = i18n.badge;
+            if (Array.isArray(i18n.points)) el.content.points = [...i18n.points];
+            if (i18n.note) el.content.note = i18n.note;
+            if (el.content.innerTable?.cells?.length >= 2 && el.content.innerTable?.cells?.[0]?.length >= 2) {
+              if (lang === 'en') {
+                el.content.innerTable.cells[0][0].text = 'Field';
+                el.content.innerTable.cells[0][1].text = 'Content';
+                el.content.innerTable.cells[1][0].text = 'Example';
+                el.content.innerTable.cells[1][1].text = 'Editable';
+              } else {
+                el.content.innerTable.cells[0][0].text = '字段';
+                el.content.innerTable.cells[0][1].text = '内容';
+                el.content.innerTable.cells[1][0].text = '示例';
+                el.content.innerTable.cells[1][1].text = '可编辑';
+              }
+            }
+          }
+          if (el.type === 'table' && el.table) {
+            if (i18n.name) el.name = i18n.name;
+            if (Array.isArray(i18n.cells)) {
+              const rows = Math.min(i18n.cells.length, el.table.cells.length);
+              for (let r = 0; r < rows; r++) {
+                const cols = Math.min(i18n.cells[r].length, el.table.cells[r].length);
+                for (let c = 0; c < cols; c++) {
+                  el.table.cells[r][c].text = i18n.cells[r][c];
+                }
+              }
+            }
+          }
+        });
+      }
+
+      function toHexColor(input, fallback = '#5b88ff') {
+        if (!input) return fallback;
+        const v = String(input).trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(v)) return v;
+        if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+          return '#' + v.slice(1).split('').map(ch => ch + ch).join('');
+        }
+        const m = v.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+        if (m) {
+          return '#' + [m[1], m[2], m[3]].map(n => clampNum(Number(n), 0, 255).toString(16).padStart(2, '0')).join('');
+        }
+        return fallback;
+      }
+
+      function toRgba(color, alpha = 1) {
+        const hex = toHexColor(color, '#5b88ff');
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+      }
+
+      async function boot() {
+        await Fonts.init();
+        State.init();
+        Renderer.renderAll();
+        Interaction.bindGlobalButtons();
+        Interaction.bindMode();
+      }
+
+      return { boot, state, State, Renderer, Interaction, Exporter, TableOps };
+    })();
+
+    App.boot();
+  </script>
+</body>
+</html>
